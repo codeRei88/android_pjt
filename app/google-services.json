@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "275566094238",
+    "project_id": "jh-chronicles",
+    "storage_bucket": "jh-chronicles.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:275566094238:android:2c25a4d6855bce7107d88f",
+        "android_client_info": {
+          "package_name": "com.trainning.jh_chronicles"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBvbMm4goPWa5f_2DMqXuaKPsRyIcSNet8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

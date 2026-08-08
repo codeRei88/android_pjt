@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@android:color/white"
+    tools:context=".SplashActivity">
+
+    <ImageView
+        android:id="@+id/logoImg"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:src="@drawable/jooho_for_splash"
+        android:contentDescription="@null" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="JH's chronicles"
+        android:textColor="#f5a30a"
+        android:gravity="center"
+        android:textSize="40dp"
+        android:fontFamily="@font/kubulim"
+        android:textStyle="bold"
+        android:layout_marginTop="20dp" />
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textSize="23dp"
+        android:layout_marginTop="20dp"
+        android:fontFamily="@font/kubulim"
+        android:text="엄마 아빠! 저의 소중한 순간을 기억해 주세요"/>
+
+</LinearLayout>

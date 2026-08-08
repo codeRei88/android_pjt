@@ -1,0 +1,446 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    tools:context=".MainActivity">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="20dp">
+
+        <TextView
+            android:id="@+id/tv_showcase_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="ConstraintLayout 핵심 기능"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/tv_showcase_subtitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="체인, 바이어스, 가이드라인, 배리어 예제"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tv_showcase_title" />
+
+        <!-- 1. Chains & Bias -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/section_chains"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tv_showcase_subtitle">
+
+            <TextView
+                android:id="@+id/tv_chain_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="1. 체인과 바이어스"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/tv_spread_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="Spread"
+                android:textStyle="bold"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_chain_title" />
+
+            <!-- 첫 번째 뷰에 chainStyle을 지정하면 연결된 세 뷰 전체에 적용됩니다. -->
+            <Button
+                android:id="@+id/spread_a"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
+                app:layout_constraintEnd_toStartOf="@id/spread_b"
+                app:layout_constraintHorizontal_chainStyle="spread"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_spread_label" />
+
+            <Button
+                android:id="@+id/spread_b"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="B"
+                app:layout_constraintBottom_toBottomOf="@id/spread_a"
+                app:layout_constraintEnd_toStartOf="@id/spread_c"
+                app:layout_constraintStart_toEndOf="@id/spread_a"
+                app:layout_constraintTop_toTopOf="@id/spread_a" />
+
+            <Button
+                android:id="@+id/spread_c"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="C"
+                app:layout_constraintBottom_toBottomOf="@id/spread_a"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/spread_b"
+                app:layout_constraintTop_toTopOf="@id/spread_a" />
+
+            <TextView
+                android:id="@+id/tv_spread_inside_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="Spread Inside"
+                android:textStyle="bold"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/spread_a" />
+
+            <Button
+                android:id="@+id/inside_a"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
+                app:layout_constraintEnd_toStartOf="@id/inside_b"
+                app:layout_constraintHorizontal_chainStyle="spread_inside"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_spread_inside_label" />
+
+            <Button
+                android:id="@+id/inside_b"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="B"
+                app:layout_constraintBottom_toBottomOf="@id/inside_a"
+                app:layout_constraintEnd_toStartOf="@id/inside_c"
+                app:layout_constraintStart_toEndOf="@id/inside_a"
+                app:layout_constraintTop_toTopOf="@id/inside_a" />
+
+            <Button
+                android:id="@+id/inside_c"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="C"
+                app:layout_constraintBottom_toBottomOf="@id/inside_a"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/inside_b"
+                app:layout_constraintTop_toTopOf="@id/inside_a" />
+
+            <TextView
+                android:id="@+id/tv_packed_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="Packed + Bias 30%"
+                android:textStyle="bold"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/inside_a" />
+
+            <!-- packed 체인 전체의 중심을 부모 너비의 30% 지점으로 이동합니다. -->
+            <Button
+                android:id="@+id/packed_a"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
+                app:layout_constraintEnd_toStartOf="@id/packed_b"
+                app:layout_constraintHorizontal_bias="0.3"
+                app:layout_constraintHorizontal_chainStyle="packed"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_packed_label" />
+
+            <Button
+                android:id="@+id/packed_b"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="B"
+                app:layout_constraintBottom_toBottomOf="@id/packed_a"
+                app:layout_constraintEnd_toStartOf="@id/packed_c"
+                app:layout_constraintStart_toEndOf="@id/packed_a"
+                app:layout_constraintTop_toTopOf="@id/packed_a" />
+
+            <Button
+                android:id="@+id/packed_c"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="C"
+                app:layout_constraintBottom_toBottomOf="@id/packed_a"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/packed_b"
+                app:layout_constraintTop_toTopOf="@id/packed_a"
+                app:layout_constraintVertical_bias="0.0" />
+
+            <TextView
+                android:id="@+id/tv_weight_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="가중치 1 : 2 : 1"
+                android:textStyle="bold"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/packed_a" />
+
+            <!-- 0dp 너비와 weight를 조합하면 남은 너비를 1:2:1로 나눕니다. -->
+            <Button
+                android:id="@+id/weight_one"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="1"
+                app:layout_constraintEnd_toStartOf="@id/weight_two"
+                app:layout_constraintHorizontal_weight="1"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_weight_label" />
+
+            <Button
+                android:id="@+id/weight_two"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="2"
+                app:layout_constraintBottom_toBottomOf="@id/weight_one"
+                app:layout_constraintEnd_toStartOf="@id/weight_three"
+                app:layout_constraintHorizontal_weight="2"
+                app:layout_constraintStart_toEndOf="@id/weight_one"
+                app:layout_constraintTop_toTopOf="@id/weight_one" />
+
+            <Button
+                android:id="@+id/weight_three"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="1"
+                app:layout_constraintBottom_toBottomOf="@id/weight_one"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintHorizontal_weight="1"
+                app:layout_constraintStart_toEndOf="@id/weight_two"
+                app:layout_constraintTop_toTopOf="@id/weight_one" />
+
+            <TextView
+                android:id="@+id/tv_chain_tip"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="서로 양방향으로 연결한 뒤 첫 번째 뷰에 chainStyle을 지정합니다."
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/weight_one" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- 2. Guideline -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/section_guideline"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="40dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/section_chains">
+
+            <TextView
+                android:id="@+id/tv_guideline_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="2. 가이드라인"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/tv_guideline_description"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="부모 너비의 40% 지점을 기준으로 항목을 정렬합니다."
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_guideline_title" />
+
+            <!-- Guideline은 화면에 그려지지 않는 투명한 기준선입니다. -->
+            <androidx.constraintlayout.widget.Guideline
+                android:id="@+id/guideline_40_percent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                app:layout_constraintGuide_percent="0.4" />
+
+            <TextView
+                android:id="@+id/tv_guideline_marker"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="← 40% 기준"
+                app:layout_constraintStart_toStartOf="@id/guideline_40_percent"
+                app:layout_constraintTop_toBottomOf="@id/tv_guideline_description" />
+
+            <TextView
+                android:id="@+id/guideline_row_one_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:layout_marginEnd="12dp"
+                android:gravity="end"
+                android:text="이름"
+                app:layout_constraintEnd_toEndOf="@id/guideline_40_percent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_guideline_marker" />
+
+            <TextView
+                android:id="@+id/guideline_row_one_value"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="홍길동"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="@id/guideline_40_percent"
+                app:layout_constraintTop_toTopOf="@id/guideline_row_one_label" />
+
+            <TextView
+                android:id="@+id/guideline_row_two_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:layout_marginEnd="12dp"
+                android:gravity="end"
+                android:text="연락처"
+                app:layout_constraintEnd_toEndOf="@id/guideline_40_percent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/guideline_row_one_label" />
+
+            <TextView
+                android:id="@+id/guideline_row_two_value"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="010-1234-5678"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="@id/guideline_40_percent"
+                app:layout_constraintTop_toTopOf="@id/guideline_row_two_label" />
+
+            <TextView
+                android:id="@+id/guideline_row_three_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:layout_marginEnd="12dp"
+                android:gravity="end"
+                android:text="알림 설정"
+                app:layout_constraintEnd_toEndOf="@id/guideline_40_percent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/guideline_row_two_label" />
+
+            <TextView
+                android:id="@+id/guideline_row_three_value"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="매일 오전 9시"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="@id/guideline_40_percent"
+                app:layout_constraintTop_toTopOf="@id/guideline_row_three_label" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- 3. Barrier -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/section_barrier"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="40dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/section_guideline">
+
+            <TextView
+                android:id="@+id/tv_barrier_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="3. 배리어"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/tv_barrier_description"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="두 라벨 중 더 긴 쪽의 끝을 따라 값 영역의 시작 위치가 자동으로 이동합니다."
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_barrier_title" />
+
+            <TextView
+                android:id="@+id/barrier_short_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="이름"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_barrier_description" />
+
+            <TextView
+                android:id="@+id/barrier_long_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:text="장기 여행자 보험 가입 상태"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/barrier_short_label" />
+
+            <!-- referenced_ids 중 가장 오른쪽에 있는 뷰 끝으로 Barrier가 이동합니다. -->
+            <androidx.constraintlayout.widget.Barrier
+                android:id="@+id/dynamic_label_end_barrier"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:barrierDirection="end"
+                app:barrierMargin="12dp"
+                app:constraint_referenced_ids="barrier_short_label,barrier_long_label" />
+
+            <Button
+                android:id="@+id/barrier_name_value"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="홍길동"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/dynamic_label_end_barrier"
+                app:layout_constraintTop_toTopOf="@id/barrier_short_label" />
+
+            <Button
+                android:id="@+id/barrier_status_value"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="가입 완료"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@id/dynamic_label_end_barrier"
+                app:layout_constraintTop_toTopOf="@id/barrier_long_label" />
+
+            <TextView
+                android:id="@+id/tv_barrier_tip"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="barrier_long_label의 text를 바꾸면 두 버튼의 시작 위치가 함께 이동합니다."
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/barrier_status_value" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</ScrollView>
