@@ -6,7 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.firebase.Firebase
@@ -14,10 +14,10 @@ import com.google.firebase.auth.auth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
 import com.trainning.jh_chronicles.databinding.ActivityRecordBinding
-import com.trainning.jh_chronicles.databinding.DialogRecordBinding
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,6 +33,14 @@ private const val MSG_AVG_STATISTICS_COMPLETE = 3
 
 class RecordActivity : AppCompatActivity() {
 
+    companion object {
+        // 시스템이 Activity를 다시 만들 때 통계 영역의 표시 상태를 복원하기 위한 Bundle key
+        private const val STATE_STATISTICS_EXPANDED = "state_record_statistics_expanded"
+
+        // 마지막으로 통계를 계산한 날짜를 화면 회전 전후로 기억하기 위한 Bundle key
+        private const val STATE_SELECTED_STATISTICS_DATE = "state_record_selected_statistics_date"
+    }
+
     private lateinit var binding: ActivityRecordBinding
 
     // 서빙 알바생 고용 (헨들러)
@@ -43,6 +51,46 @@ class RecordActivity : AppCompatActivity() {
 
     // Firebase 리스너가 연결된 데이터베이스 경로를 보관한다.
     private var recordReference: DatabaseReference? = null
+
+    // onCreate에서 연결한 Firebase 데이터베이스와 로그인 사용자 경로를 다른 생명주기에서도 사용하기 위한 변수
+    private lateinit var database: FirebaseDatabase
+    private lateinit var myRef: DatabaseReference
+    private lateinit var uid: String
+
+    // RecyclerView에 전달할 기록과 어댑터를 onCreate 밖의 Firebase 리스너에서도 사용하기 위한 변수
+    private val dataList = mutableListOf<RecordData>()
+    private lateinit var recordAdapter: AdapterRecord
+
+    // 날짜가 바뀌었을 때 onResume에서 통계를 다시 계산할 수 있도록 최근 Firebase 기록을 보관
+    private var latestEventList: List<RecordData.EventData> = emptyList()
+
+    // 현재 통계가 펼쳐져 있는지와 어떤 날짜를 기준으로 계산했는지 기억하는 UI 상태 변수
+    private var isStatisticsExpanded = true
+    private var selectedStatisticsDate = ""
+
+    /*
+     * RecordEditorActivity를 실행한 뒤 작성·수정·삭제 결과를 받기 위한 Activity Result 등록입니다.
+     * StartActivityForResult Contract는 Intent를 입력받아 Activity를 실행하고 ActivityResult를 반환합니다.
+     * 뒤의 람다는 EditorActivity가 setResult() 후 finish() 했을 때 실행되는 사후 처리 Callback입니다.
+     */
+    private val recordEditorLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { activityResult ->
+
+        // 취소 버튼이나 시스템 뒤로가기는 RESULT_OK가 아니므로 Firebase를 변경하지 않음
+        if (activityResult.resultCode != RESULT_OK) {
+            return@registerForActivityResult
+        }
+
+        // RecordEditorActivity가 결과 데이터를 넣어 돌려준 Intent를 꺼냄
+        val resultIntent = activityResult.data ?: return@registerForActivityResult
+
+        // 같은 EditorActivity가 저장과 삭제 결과를 모두 보내므로 action 값으로 사후 처리를 구분함
+        when (resultIntent.getStringExtra(RecordEditorActivity.EXTRA_RESULT_ACTION)) {
+            RecordEditorActivity.RESULT_ACTION_SAVE -> saveRecordResult(resultIntent)
+            RecordEditorActivity.RESULT_ACTION_DELETE -> deleteRecordResult(resultIntent)
+        }
+    }
 
     // 기록데이터에서 숫자만 추출하는 메서드
     private fun extractNumber(value: String): Int {
@@ -58,12 +106,12 @@ class RecordActivity : AppCompatActivity() {
         return numberText.toIntOrNull() ?: 0
     }
 
-    // 전체 기록을 받아 오늘의 육아 통계를 계산한다.
+    // 전체 기록을 받아 전달받은 날짜의 육아 통계를 계산한다.
     // 이 함수는 나중에 백그라운드 Thread에서 실행한다.
-    private fun calculateTodaySummary(events: List<RecordData.EventData>): DailySummary {
-
-        // 현재 날짜를 Firebase 기록의 날짜 형식과 똑같이 만든다.
-        val today = SimpleDateFormat("yyyy년 M월 d일", Locale.KOREAN).format(Date())
+    private fun calculateTodaySummary(
+        events: List<RecordData.EventData>,
+        statisticsDate: String
+    ): DailySummary {
 
         // 오늘 우유 총량을 누적할 그릇이다.
         var totalMilk = 0
@@ -75,8 +123,8 @@ class RecordActivity : AppCompatActivity() {
         var poopCount = 0
         // 전체 육아 기록을 하나씩 꺼내 확인한다.
         for (event in events) {
-            // 기록 날짜가 오늘이 아니면 통계에 포함하지 않는다.
-            if (event.date != today) {
+            // 기록 날짜가 통계를 계산할 날짜와 다르면 통계에 포함하지 않는다.
+            if (event.date != statisticsDate) {
                 // 현재 기록을 건너뛰고 다음 기록으로 이동한다.
                 continue
             }
@@ -127,11 +175,23 @@ class RecordActivity : AppCompatActivity() {
     // Fragment의 onCreateView 대신 Activity는 onCreate에서 화면을 생성한다.
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        logLifecycle("onCreate")
+        logLifecycle("onCreate - RecyclerView, Handler와 버튼을 최초로 준비")
 
         // 화면 생성(식당 인테리어 끝)
         binding = ActivityRecordBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        /*
+         * 화면 회전처럼 Activity가 다시 생성된 경우 Bundle에 저장해 둔 UI 상태를 복원합니다.
+         * 현재 화면에는 별도의 날짜 선택기가 없으므로 selectedStatisticsDate는 오늘 통계의 기준 날짜입니다.
+         */
+        isStatisticsExpanded =
+            savedInstanceState?.getBoolean(STATE_STATISTICS_EXPANDED) ?: true
+        selectedStatisticsDate =
+            savedInstanceState?.getString(STATE_SELECTED_STATISTICS_DATE)
+                ?: getCurrentRecordDate()
+        binding.statisticsLayout.visibility =
+            if (isStatisticsExpanded) View.VISIBLE else View.GONE
 
         // 알바생인 헨들러가 백그라운드 쓰레드에서 받은 메세지를 가지고 카운터(화면)에서 할일을 학습 시킴(Handler.CallBack인터페이스)
         mainHandler = Handler(Looper.getMainLooper()) { message ->
@@ -211,140 +271,164 @@ class RecordActivity : AppCompatActivity() {
         }
 
         // 파이어베이스 데이터베이스 연결
-        val database = Firebase.database // 파이어베이스 저장공간을 코드로 가져오기
-        val uid = Firebase.auth.currentUser!!.uid // 파이어베이스에 접속한 유저의 uid를 가져다 저장함
-        val myRef = database.getReference("record_entries").child(uid) // 가져온 저장공간에 폴더 이름설정 및 생성 해주기
-
-        // 각종 버튼 눌렀을 시 이벤트 처리(버튼 누른 시간 저장 후 저장 버튼을 누른 순간 그 시간과 우유양이 리사클러뷰에 나타나게 함
-        // 리사이클러뷰에 나타나게 하려면 어뎁터에게 그 정보로 주고 알려줘야함, 그러려면 데이터베이스에 그 값을 저장해야함, 이모든 것을 하는 함수 선언
-        fun showRecordDialog(eventTitle: String, inputHint: String, unit: String) {
-            // 버튼을 누른 순간 현재 날짜 시간을 다 가져와서 clickedAt 변수에 담는다.
-            val clickedAt = Date()
-            // 버튼을 누른 순간의 시간만 긁어와서 눈에 보이는 포멧에 넣어준다
-            val currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(clickedAt)
-            // 버튼을 누른 날짜 순간의 날짜만 긁어와서 포멧에 넣어준다
-            val currentDate = SimpleDateFormat("yyyy년 M월 d일", Locale.KOREAN).format(clickedAt)
-
-            val dialogBinding = DialogRecordBinding.inflate(layoutInflater)
-
-            dialogBinding.title.text = eventTitle
-            dialogBinding.detailInput.hint = inputHint
-            dialogBinding.deleteBtn.visibility = View.GONE
-
-            if (eventTitle == "수면") {
-                dialogBinding.sleepTypeGroup.visibility = View.VISIBLE
-            } else {
-                dialogBinding.sleepTypeGroup.visibility = View.GONE
-            }
-
-            // 다이얼로그 생성
-            val dialog = AlertDialog.Builder(this)
-                .setView(dialogBinding.root)
-                .create()
-            // 다이얼로그 내 버튼 이벤트 처리
-            dialogBinding.saveBtn.setOnClickListener {
-                val inputValue = dialogBinding.detailInput.text.toString()
-
-                if (inputValue.isBlank()) {
-                    dialogBinding.detailInput.error = "내용을 입력해주세요"
-                    return@setOnClickListener
-                }
-
-                var finalTitle = eventTitle
-                if (eventTitle == "수면") {
-                    val selectedType = if (dialogBinding.napRadioBtn.isChecked) "낮잠" else "밤잠"
-                    finalTitle = "$eventTitle($selectedType)"
-                }
-
-                val eventRef = myRef.push() // 데이터베이스의 myRef 경로 최하단에 파이어베이스키값으로된 폴더를 하나 생성하고 경로전체를 저장
-                val eventId = eventRef.key ?: return@setOnClickListener //eventRef 전체 경로중 최하단 참조 키값을 eventId에 저장
-                // 데이터베이스에 저장하기위해 저장하고자하는 모든 값을 담는 그릇 선언
-                val newData = RecordData.EventData(
-                    id = eventId,
-                    time = currentTime,
-                    date = currentDate,
-                    eventDetail = "$inputValue$unit",
-                    title = finalTitle
-                )
-                eventRef.setValue(newData) // 데이터베이스에 저장
-                dialog.dismiss()
-            }
-            dialogBinding.cancelBtn.setOnClickListener {
-                dialog.dismiss()
-            }
-            dialog.show()
-        }
-
-        //생성된 리사클러뷰를 클릭하여 수정 다이얼로그를 띄우고 수정된 값을 데이터베이스에 저장하기 위한 함수
-        fun showEditDialog(clickedRV: RecordData.EventData) {
-
-            val dialogBinding = DialogRecordBinding.inflate(layoutInflater)
-
-            dialogBinding.title.text = clickedRV.title // 클릭된 뷰의 타이틀
-            dialogBinding.detailInput.setText(clickedRV.eventDetail) // 클릭된 뷰의 디테일 내용
-            dialogBinding.saveBtn.text = "수정"
-            dialogBinding.deleteBtn.visibility = View.VISIBLE
-
-            if (clickedRV.title.startsWith("수면")) {
-                dialogBinding.sleepTypeGroup.visibility = View.VISIBLE
-                if (clickedRV.title.contains("낮잠")) {
-                    dialogBinding.napRadioBtn.isChecked = true
-                } else if (clickedRV.title.contains("밤잠")) {
-                    dialogBinding.nightSleepRadioBtn.isChecked = true
-                }
-            } else {
-                dialogBinding.sleepTypeGroup.visibility = View.GONE
-            }
-
-            // 수정 시 다이알로그 생성
-            val dialog = AlertDialog.Builder(this)
-                .setView(dialogBinding.root)
-                .create()
-
-            dialogBinding.saveBtn.setOnClickListener {
-                val updatedValue = dialogBinding.detailInput.text.toString()
-
-                if (updatedValue.isBlank()) {
-                    dialogBinding.detailInput.error = "내용을 입력해주세요"
-                    return@setOnClickListener
-                }
-
-                var updatedTitle = clickedRV.title
-                if (clickedRV.title.startsWith("수면")) {
-                    val selectedType = if (dialogBinding.napRadioBtn.isChecked) "낮잠" else "밤잠"
-                    updatedTitle = "수면($selectedType)"
-                }
-
-                val updatedData = clickedRV.copy(eventDetail = updatedValue, title = updatedTitle) // updatedData에 클릭된 뷰의 객체내 eventDetail 정보를 updatedValue로 바꾼 정보를 저장하라
-                myRef.child(clickedRV.id).setValue(updatedData) // 바꾼 updatedData를 클릭된 뷰의 id를 찾아 데이터베이스에 저장하라
-                dialog.dismiss()
-            }
-
-            dialogBinding.deleteBtn.setOnClickListener {
-                myRef.child(clickedRV.id).removeValue()
-                dialog.dismiss()
-            }
-            dialogBinding.cancelBtn.setOnClickListener {
-                dialog.dismiss()
-            }
-
-            dialog.show()
-        }
+        database = Firebase.database // 파이어베이스 저장공간을 코드로 가져오기
+        uid = Firebase.auth.currentUser!!.uid // 파이어베이스에 접속한 유저의 uid를 가져다 저장함
+        myRef = database.getReference("record_entries").child(uid) // 가져온 저장공간에 폴더 이름설정 및 생성 해주기
 
         //리사이클러뷰를 어뎁터와 레이아웃 메니저와 연결
-        val dataList = mutableListOf<RecordData>()// 어뎁터에 쥐어줄 데이터를 리스트화해서 변수그룻에 담기
-        val recordAdapter = AdapterRecord(dataList)
+        recordAdapter = AdapterRecord(dataList)// 어뎁터에 쥐어줄 데이터를 리스트화해서 변수그룻에 담기
         binding.recordRc.adapter = recordAdapter
         binding.recordRc.layoutManager = LinearLayoutManager(this)
+
         //리사이클러뷰 클릭 이벤트 처리
         recordAdapter.itemClick = object : AdapterRecord.ItemClick {
             override fun onClick(view: View, position: Int) {
                 val clickedRV = dataList[position]
                 if (clickedRV is RecordData.EventData) { // clickedRV가 RecordData.EventData 객체 타입인지 확인
-                    showEditDialog(clickedRV)
+                    // 기존 수정 Dialog 대신 클릭한 기록을 Extra에 담아 수정 전용 Activity 실행
+                    openRecordEditorForEdit(clickedRV)
                 }
             }
         }
+
+        //평균계산 버튼 누를경우 지난날 모든 데이터 평균을 계산 후 헨들러에게 전달
+        binding.avgBtn.setOnClickListener {
+            calculateAverageStatistics()
+        }
+
+        /*
+         * 기존 showRecordDialog() 호출 대신 명시적 Intent로 RecordEditorActivity를 실행합니다.
+         * event type, 입력 힌트와 단위를 Extra로 전달하므로 하나의 EditorActivity가 네 기록을 모두 처리합니다.
+         */
+        binding.milk.setOnClickListener {
+            openRecordEditorForCreate("우유", "수유량(ml)", "(ml)")
+        }
+        binding.meal.setOnClickListener {
+            openRecordEditorForCreate("맘마", "이유식 양(ml)", "(ml)")
+        }
+        binding.sleep.setOnClickListener {
+            openRecordEditorForCreate("수면", "수면 시간입력", "(분)")
+        }
+        binding.poop.setOnClickListener {
+            openRecordEditorForCreate("배변", "보통,설사", "")
+        }
+
+        // 액티비티 화면 이동 부분은 명시적 Intent 이동으로만 변경
+        binding.weatherBtn.setOnClickListener {
+            startActivity(Intent(this, WeatherActivity::class.java))
+        }
+
+        binding.diaryBtn.setOnClickListener {
+            startActivity(Intent(this, DiaryActivity::class.java))
+        }
+
+        binding.dDayBtn.setOnClickListener {
+            startActivity(Intent(this, VaccinationActivity::class.java))
+        }
+
+        binding.mapBtn.setOnClickListener {
+            startActivity(Intent(this, HospitalActivity::class.java))
+        }
+    }
+
+    /*
+     * 새 기록 작성 화면을 여는 명시적 Intent입니다.
+     * 어떤 버튼을 눌렀는지 RecordEditorActivity가 알 수 있도록 종류·힌트·단위를 Extra로 전달합니다.
+     */
+    private fun openRecordEditorForCreate(
+        eventTitle: String,
+        inputHint: String,
+        unit: String
+    ) {
+        // 기존 showRecordDialog()처럼 기록 버튼을 누른 순간의 날짜와 시간을 먼저 만듦
+        val clickedAt = Date()
+        val clickedTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(clickedAt)
+        val clickedDate = SimpleDateFormat("yyyy년 M월 d일", Locale.KOREAN).format(clickedAt)
+
+        val editorIntent = Intent(this, RecordEditorActivity::class.java).apply {
+            // 같은 편집 Activity가 작성과 수정을 모두 담당하므로 새 기록 작성 모드 전달
+            putExtra(RecordEditorActivity.EXTRA_EDITOR_MODE, RecordEditorActivity.MODE_CREATE)
+
+            // 우유·맘마·수면·배변 중 어떤 입력 화면인지 알려주는 실제 값
+            putExtra(RecordEditorActivity.EXTRA_EVENT_TYPE, eventTitle)
+
+            // 기존 Dialog의 EditText 안내 문구와 저장 단위를 그대로 전달
+            putExtra(RecordEditorActivity.EXTRA_INPUT_HINT, inputHint)
+            putExtra(RecordEditorActivity.EXTRA_INPUT_UNIT, unit)
+
+            // EditorActivity에서 입력하는 동안 시간이 지나도 기존 기능처럼 버튼 클릭 시점을 저장하도록 전달
+            putExtra(RecordEditorActivity.EXTRA_RECORD_TIME, clickedTime)
+            putExtra(RecordEditorActivity.EXTRA_RECORD_DATE, clickedDate)
+        }
+
+        // EditorActivity의 setResult() 결과가 필요하므로 startActivity가 아닌 Launcher로 실행
+        recordEditorLauncher.launch(editorIntent)
+    }
+
+    /*
+     * 기존 기록 수정 화면을 여는 명시적 Intent입니다.
+     * 기존 Dialog에 넣었던 id, 날짜, 시간, 제목, 상세 내용을 putExtra()로 그대로 전달합니다.
+     */
+    private fun openRecordEditorForEdit(clickedRV: RecordData.EventData) {
+        val editorIntent = Intent(this, RecordEditorActivity::class.java).apply {
+            putExtra(RecordEditorActivity.EXTRA_EDITOR_MODE, RecordEditorActivity.MODE_EDIT)
+            putExtra(RecordEditorActivity.EXTRA_RECORD_ID, clickedRV.id)
+            putExtra(RecordEditorActivity.EXTRA_RECORD_DATE, clickedRV.date)
+            putExtra(RecordEditorActivity.EXTRA_RECORD_TIME, clickedRV.time)
+            putExtra(RecordEditorActivity.EXTRA_EVENT_TYPE, clickedRV.title)
+            putExtra(RecordEditorActivity.EXTRA_RECORD_DETAIL, clickedRV.eventDetail)
+        }
+
+        // 수정 또는 삭제 결과를 Activity Result Callback에서 받기 위해 Launcher로 실행
+        recordEditorLauncher.launch(editorIntent)
+    }
+
+    /*
+     * RecordEditorActivity가 RESULT_OK와 함께 돌려준 작성·수정 결과를 Firebase에 반영합니다.
+     * id가 없으면 push()로 새 기록을 만들고, id가 있으면 기존 기록 경로를 선택합니다.
+     */
+    private fun saveRecordResult(resultIntent: Intent) {
+        val returnedRecordId =
+            resultIntent.getStringExtra(RecordEditorActivity.EXTRA_RECORD_ID).orEmpty()
+
+        val targetRef = if (returnedRecordId.isBlank()) {
+            myRef.push()
+        } else {
+            myRef.child(returnedRecordId)
+        }
+
+        val finalRecordId = targetRef.key ?: return
+
+        // 결과 Intent의 값들을 기존 RecordData.EventData 그릇에 다시 담음
+        val returnedRecord = RecordData.EventData(
+            id = finalRecordId,
+            time = resultIntent.getStringExtra(RecordEditorActivity.EXTRA_RECORD_TIME).orEmpty(),
+            date = resultIntent.getStringExtra(RecordEditorActivity.EXTRA_RECORD_DATE).orEmpty(),
+            eventDetail = resultIntent.getStringExtra(RecordEditorActivity.EXTRA_RECORD_DETAIL).orEmpty(),
+            title = resultIntent.getStringExtra(RecordEditorActivity.EXTRA_EVENT_TYPE).orEmpty()
+        )
+
+        // 기존 Dialog에서 하던 것과 똑같이 선택한 Firebase 경로에 기록 저장
+        targetRef.setValue(returnedRecord)
+    }
+
+    // RecordEditorActivity가 돌려준 삭제 결과에서 id를 꺼내 Firebase의 해당 기록만 삭제
+    private fun deleteRecordResult(resultIntent: Intent) {
+        val recordId =
+            resultIntent.getStringExtra(RecordEditorActivity.EXTRA_RECORD_ID).orEmpty()
+
+        if (recordId.isNotBlank()) {
+            myRef.child(recordId).removeValue()
+        }
+    }
+
+    /*
+     * Firebase 기록 리스너를 연결하는 함수입니다.
+     * onStart에서 호출하여 Activity가 사용자에게 보이는 동안에만 기록 변경을 관찰합니다.
+     */
+    private fun attachRecordListener() {
+        // onStart가 다시 호출돼도 같은 리스너가 중복 등록되지 않도록 확인
+        if (recordListener != null) return
 
         // 데이터베이스에 업데이트사항이 있으면 데이터베이스의 데이터를 하나하나 dataList(어뎁터가 받을)에 추가 시킨다
         // Firebase에서 기록을 받고 어뎁터에게 줄 데이터리스트에 데이터를 추가시킬 리스너 객체를 만든 후 변수에 저장한다, 추후 리스너 해제를 위해
@@ -401,54 +485,10 @@ class RecordActivity : AppCompatActivity() {
 
                 // 백그라운드 Thread가 안전하게 사용할 수 있도록 리스트를 복사한다.
                 // toList() 수정이 안되는 복사본을 만드는것, 원본을 주지 않는이유는 계산 중 데이터가 수정될 경우 에러를 막기 위함.
-                val eventsForCalculation = eventList.toList()
+                latestEventList = eventList.toList()
 
-                // 새로운 백그라운드 통계 작업자를 만든다.
-                // 데이터가 완전히 도착했고 리스트에 추가가 됐으므로 그걸 토대로 작업을 하는 쓰레드를 이 위치에 선언한다.
-                Thread {
-
-                    // 계산 과정에서 발생할 수 있는 오류를 처리한다.
-                    try {
-
-                        // 백그라운드 Thread가 오늘의 통계를 계산한다.
-                        val summary = calculateTodaySummary(eventsForCalculation)
-
-                        // 2. 카운터로 보내기 전에 데이터베이스(창고)에 먼저 저장하기
-                        // 오늘 섬머리한 데이터의 날짜를 변수에 저장
-                        val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.KOREAN).format(Date())
-
-                        // 기존 myRef(record_entries)가 아닌, 'daily_summaries'라는 완전히 새로운 폴더를 만듬
-                        // 기존 record_entries 폴더에 저장하면 섬머리가 저장되면서 리스너가 데이터베이스 갱신으로 방금저장한 값을 또 던저줘 무한루프에 빠짐
-                        val summaryRef = database.getReference("daily_summaries").child(uid).child(dateKey)
-
-                        // 새로 판 창고에 계산된 summary 물건을 쏙 집어넣는다. (무한루프 걱정 없음)
-                        summaryRef.setValue(summary)
-
-                        // 계산끝냈고 데이터베이스에 저장했으니 메인쓰레드에게 줄 택배를 포장한다.
-                        // 3. 메인 우편 담당자(알바생)에게 택배 상자를 요청하고 내용물을 담는다.
-                        val completeMessage = mainHandler.obtainMessage(
-                            MSG_STATISTICS_COMPLETE,
-                            summary
-                        )
-                        // 완성된 택배를 target인 mainHandler에게 실제 발송한다.
-                        completeMessage.sendToTarget()
-
-                    } catch (exception: Exception) {
-
-                        // 계산 중 발생할 수 있는 오류 내용을 문자열로 만든다.
-                        val errorText =
-                            exception.message ?: "통계 계산 중 오류가 발생했습니다."
-
-                        // 실패 송장 번호와 오류 문장을 담은 택배를 만든다.
-                        val failedMessage = mainHandler.obtainMessage(
-                            MSG_STATISTICS_FAILED,
-                            errorText
-                        )
-                        // 실패 택배도 mainHandler에게 실제 발송한다.
-                        failedMessage.sendToTarget()
-                    }
-
-                }.start()
+                // 데이터가 도착한 시점의 오늘 날짜를 기준으로 기존 통계 계산을 실행
+                startTodayStatisticsCalculation(latestEventList, getCurrentRecordDate())
             }
 
             // Firebase 데이터를 가져오지 못했을 때 호출된다.
@@ -468,7 +508,7 @@ class RecordActivity : AppCompatActivity() {
             }
         }
 
-        // 화면 종료 시 제거할 수 있도록 Firebase 리스너를 보관한다.
+        // onStop에서 정확히 같은 리스너 객체를 제거할 수 있도록 필드에 저장
         recordListener = listener
 
         // 리스너를 제거할 때 필요한 Firebase 경로를 보관한다.
@@ -476,157 +516,219 @@ class RecordActivity : AppCompatActivity() {
 
         // Firebase 경로에 기록 변경 리스너를 등록한다.
         myRef.addValueEventListener(listener)
+    }
 
-        //평균계산 버튼 누를경우 지난날 모든 데이터 평균을 계산 후 헨들러에게 전달
-        binding.avgBtn.setOnClickListener {
+    // onStart에서 연결했던 Firebase 리스너를 화면이 완전히 가려지는 onStop에서 제거
+    private fun detachRecordListener() {
+        recordListener?.let { listener ->
+            recordReference?.removeEventListener(listener)
+        }
+        recordListener = null
+        recordReference = null
+    }
 
-            val avgRef = database.getReference("daily_summaries").child(uid)
+    /*
+     * 오늘 통계 계산과 daily_summaries 저장을 기존 코드 그대로 한곳에 모은 함수입니다.
+     * Firebase 변경 시에도 호출하고, 날짜가 바뀐 뒤 onResume될 때도 호출합니다.
+     */
+    private fun startTodayStatisticsCalculation(
+        eventsForCalculation: List<RecordData.EventData>,
+        statisticsDate: String
+    ) {
+        // 현재 어떤 날짜를 기준으로 계산했는지 onResume과 Bundle 저장에서 확인할 수 있도록 기억
+        selectedStatisticsDate = statisticsDate
+        binding.statisticsProgress.visibility = View.VISIBLE
 
-            // 평균 계산 시작 시 로딩 표시를 보여준다.
-            binding.statisticsProgress.visibility = View.VISIBLE
+        // 새로운 백그라운드 통계 작업자를 만든다.
+        // 데이터가 완전히 도착했고 리스트에 추가가 됐으므로 그걸 토대로 작업을 하는 쓰레드를 이 위치에 선언한다.
+        Thread {
 
-            avgRef.addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    var totalMilkAmount = 0
-                    var totalMealAmount = 0
-                    var totalSleepMinutes = 0
-                    var totalPoopCount = 0
-                    var dayCount = 0
+            // 계산 과정에서 발생할 수 있는 오류를 처리한다.
+            try {
 
-                    // 계산은 백그라운드 쓰레드가 담당
-                    Thread {
+                // 백그라운드 Thread가 오늘의 통계를 계산한다.
+                val summary = calculateTodaySummary(eventsForCalculation, statisticsDate)
 
-                        try {
+                // 2. 카운터로 보내기 전에 데이터베이스(창고)에 먼저 저장하기
+                // 오늘 섬머리한 데이터의 날짜를 변수에 저장
+                val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.KOREAN).format(Date())
 
-                            for (dateSnapshot in snapshot.children) {
-                                val dailySummary = dateSnapshot.getValue(DailySummary::class.java) ?: continue
-                                totalMilkAmount += dailySummary.totalMilk
-                                totalMealAmount += dailySummary.totalMeal
-                                totalSleepMinutes += dailySummary.totalSleepMinutes
-                                totalPoopCount += dailySummary.poopCount
-                                dayCount++
-                            }
-                            if (dayCount > 0) {
-                                val averageMilk = totalMilkAmount / dayCount
-                                val averageMeal = totalMealAmount / dayCount
-                                val averageSleep = totalSleepMinutes / dayCount
-                                val averagePoop = totalPoopCount.toDouble() / dayCount
+                // 기존 myRef(record_entries)가 아닌, 'daily_summaries'라는 완전히 새로운 폴더를 만듬
+                // 기존 record_entries 폴더에 저장하면 섬머리가 저장되면서 리스너가 데이터베이스 갱신으로 방금저장한 값을 또 던저줘 무한루프에 빠짐
+                val summaryRef = database.getReference("daily_summaries").child(uid).child(dateKey)
 
-                                val avgData = AvgSummary(
-                                    avgMilk = averageMilk,
-                                    avgMeal = averageMeal,
-                                    avgSleepMinutes = averageSleep,
-                                    avgPoopCount = averagePoop,
-                                    countDay = dayCount
-                                )
-                                val completeMsg = mainHandler.obtainMessage(MSG_AVG_STATISTICS_COMPLETE, avgData)
-                                completeMsg.sendToTarget()
-                            }
+                // 새로 판 창고에 계산된 summary 물건을 쏙 집어넣는다. (무한루프 걱정 없음)
+                summaryRef.setValue(summary)
 
-                        } catch (exception: Exception) {
-                            // 계산 중 발생한 오류 내용을 문자열로 만든다.
-                            val errorText =
-                                exception.message ?: "통계 계산 중 오류가 발생했습니다."
+                // 계산끝냈고 데이터베이스에 저장했으니 메인쓰레드에게 줄 택배를 포장한다.
+                // 3. 메인 우편 담당자(알바생)에게 택배 상자를 요청하고 내용물을 담는다.
+                val completeMessage = mainHandler.obtainMessage(
+                    MSG_STATISTICS_COMPLETE,
+                    summary
+                )
+                // 완성된 택배를 target인 mainHandler에게 실제 발송한다.
+                completeMessage.sendToTarget()
 
-                            // 실패 송장 번호와 오류 문장을 담은 택배를 만든다.
-                            val failedMessage = mainHandler.obtainMessage(
-                                MSG_STATISTICS_FAILED,
-                                errorText
-                            )
-                            // 실패 택배도 mainHandler에게 실제 발송한다.
-                            failedMessage.sendToTarget()
+            } catch (exception: Exception) {
+
+                // 계산 중 발생할 수 있는 오류 내용을 문자열로 만든다.
+                val errorText =
+                    exception.message ?: "통계 계산 중 오류가 발생했습니다."
+
+                // 실패 송장 번호와 오류 문장을 담은 택배를 만든다.
+                val failedMessage = mainHandler.obtainMessage(
+                    MSG_STATISTICS_FAILED,
+                    errorText
+                )
+                // 실패 택배도 mainHandler에게 실제 발송한다.
+                failedMessage.sendToTarget()
+            }
+
+        }.start()
+    }
+
+    //평균계산 버튼의 기존 계산 코드를 함수로 옮겨 onCreate에는 버튼 연결 역할만 남김
+    private fun calculateAverageStatistics() {
+        val avgRef = database.getReference("daily_summaries").child(uid)
+
+        // 평균 계산 시작 시 로딩 표시를 보여준다.
+        binding.statisticsProgress.visibility = View.VISIBLE
+
+        avgRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                var totalMilkAmount = 0
+                var totalMealAmount = 0
+                var totalSleepMinutes = 0
+                var totalPoopCount = 0
+                var dayCount = 0
+
+                // 계산은 백그라운드 쓰레드가 담당
+                Thread {
+
+                    try {
+
+                        for (dateSnapshot in snapshot.children) {
+                            val dailySummary = dateSnapshot.getValue(DailySummary::class.java) ?: continue
+                            totalMilkAmount += dailySummary.totalMilk
+                            totalMealAmount += dailySummary.totalMeal
+                            totalSleepMinutes += dailySummary.totalSleepMinutes
+                            totalPoopCount += dailySummary.poopCount
+                            dayCount++
                         }
-                    }.start()
-                }
+                        if (dayCount > 0) {
+                            val averageMilk = totalMilkAmount / dayCount
+                            val averageMeal = totalMealAmount / dayCount
+                            val averageSleep = totalSleepMinutes / dayCount
+                            val averagePoop = totalPoopCount.toDouble() / dayCount
 
-                override fun onCancelled(error: DatabaseError) {
-                    // Firebase 오류 내용을 사용자용 문장으로 만든다.
-                    val errorText = "데이터 로드 실패: ${error.message}"
+                            val avgData = AvgSummary(
+                                avgMilk = averageMilk,
+                                avgMeal = averageMeal,
+                                avgSleepMinutes = averageSleep,
+                                avgPoopCount = averagePoop,
+                                countDay = dayCount
+                            )
+                            val completeMsg = mainHandler.obtainMessage(MSG_AVG_STATISTICS_COMPLETE, avgData)
+                            completeMsg.sendToTarget()
+                        }
 
-                    // 실패 송장 번호와 오류 문장을 담은 택배를 만든다.
-                    val failedMessage = mainHandler.obtainMessage(
-                        MSG_STATISTICS_FAILED,
-                        errorText
-                    )
+                    } catch (exception: Exception) {
+                        // 계산 중 발생한 오류 내용을 문자열로 만든다.
+                        val errorText =
+                            exception.message ?: "통계 계산 중 오류가 발생했습니다."
 
-                    // 실패 택배를 메인 우편 담당자에게 발송한다.
-                    failedMessage.sendToTarget()
-                }
-            })
-        }
+                        // 실패 송장 번호와 오류 문장을 담은 택배를 만든다.
+                        val failedMessage = mainHandler.obtainMessage(
+                            MSG_STATISTICS_FAILED,
+                            errorText
+                        )
+                        // 실패 택배도 mainHandler에게 실제 발송한다.
+                        failedMessage.sendToTarget()
+                    }
+                }.start()
+            }
 
-        // 레코드 액티비티의 이벤트 버튼을 누를때마다 해당 이벤트에대한 리사클러뷰 추가 및 데이터베이스에 저장
-        binding.milk.setOnClickListener {
-            showRecordDialog("우유", "수유량(ml)", "(ml)")
-        }
-        binding.meal.setOnClickListener {
-            showRecordDialog("맘마", "이유식 양(ml)", "(ml)")
-        }
-        binding.sleep.setOnClickListener {
-            showRecordDialog("수면", "수면 시간입력", "(분)")
-        }
-        binding.poop.setOnClickListener {
-            showRecordDialog("배변", "보통,설사", "")
-        }
+            override fun onCancelled(error: DatabaseError) {
+                // Firebase 오류 내용을 사용자용 문장으로 만든다.
+                val errorText = "데이터 로드 실패: ${error.message}"
 
-        // 액티비티 화면 이동 부분은 명시적 Intent 이동으로만 변경
-        binding.weatherBtn.setOnClickListener {
-            startActivity(Intent(this, WeatherActivity::class.java))
-        }
+                // 실패 송장 번호와 오류 문장을 담은 택배를 만든다.
+                val failedMessage = mainHandler.obtainMessage(
+                    MSG_STATISTICS_FAILED,
+                    errorText
+                )
 
-        binding.diaryBtn.setOnClickListener {
-            startActivity(Intent(this, DiaryActivity::class.java))
-        }
+                // 실패 택배를 메인 우편 담당자에게 발송한다.
+                failedMessage.sendToTarget()
+            }
+        })
+    }
 
-        binding.dDayBtn.setOnClickListener {
-            startActivity(Intent(this, VaccinationActivity::class.java))
-        }
-
-        binding.mapBtn.setOnClickListener {
-            startActivity(Intent(this, HospitalActivity::class.java))
-        }
+    // Firebase 기록의 날짜 형식과 같은 오늘 날짜 문자열을 만드는 함수
+    private fun getCurrentRecordDate(): String {
+        return SimpleDateFormat("yyyy년 M월 d일", Locale.KOREAN).format(Date())
     }
 
     override fun onStart() {
         super.onStart()
-        logLifecycle("onStart")
+        logLifecycle("onStart - Firebase 기록 리스너 연결")
+
+        // Activity가 화면에 보이는 동안에만 Firebase 기록 변경을 받도록 리스너 연결
+        attachRecordListener()
     }
 
     override fun onResume() {
         super.onResume()
-        logLifecycle("onResume")
+        logLifecycle("onResume - 오늘 날짜 변경 여부 확인")
+
+        /*
+         * 홈 화면이나 EditorActivity에 머무는 사이 날짜가 바뀌었는지 확인합니다.
+         * 날짜가 바뀌었다면 최근에 받은 기록을 새 날짜 기준으로 다시 계산합니다.
+         */
+        val currentDate = getCurrentRecordDate()
+        if (selectedStatisticsDate != currentDate && latestEventList.isNotEmpty()) {
+            startTodayStatisticsCalculation(latestEventList, currentDate)
+        }
     }
 
     override fun onPause() {
-        logLifecycle("onPause")
+        logLifecycle("onPause - EditorActivity 또는 다른 화면이 앞에 나타남")
         super.onPause()
     }
 
     override fun onStop() {
-        logLifecycle("onStop")
+        // 화면이 완전히 가려진 동안 Firebase 콜백을 계속 받을 필요가 없으므로 리스너 제거
+        detachRecordListener()
+        logLifecycle("onStop - Firebase 기록 리스너 제거")
         super.onStop()
     }
 
     override fun onRestart() {
         super.onRestart()
-        logLifecycle("onRestart")
+        logLifecycle("onRestart - 다른 Activity에서 기록 화면으로 돌아옴")
+    }
+
+    /*
+     * 시스템이 Activity를 파괴하고 다시 만들 때 통계 UI 상태와 기준 날짜를 복원하기 위한 Bundle 저장입니다.
+     * Firebase에 저장할 실제 기록이 아니라 잠깐 유지할 화면 상태이므로 onSaveInstanceState를 사용합니다.
+     */
+    override fun onSaveInstanceState(outState: Bundle) {
+        // 현재 통계 영역이 보이는 상태인지 Boolean 값으로 저장
+        isStatisticsExpanded = binding.statisticsLayout.visibility == View.VISIBLE
+        outState.putBoolean(STATE_STATISTICS_EXPANDED, isStatisticsExpanded)
+
+        // 마지막 통계 기준 날짜를 저장하여 onResume에서 날짜 변경 여부를 다시 비교할 수 있게 함
+        outState.putString(STATE_SELECTED_STATISTICS_DATE, selectedStatisticsDate)
+
+        logLifecycle("onSaveInstanceState - 통계 영역 상태와 통계 기준 날짜 저장")
+        super.onSaveInstanceState(outState)
     }
 
     // RecordFragment의 onDestroyView가 Activity에서는 onDestroy로 바뀐다.
     override fun onDestroy() {
 
-        // Firebase 리스너가 등록돼 있는지 확인한다.
-        recordListener?.let { listener ->
-
-            // 화면이 사라진 뒤에도 데이터베이스 업데이트로 택배가 계속 만들어지지 않도록 리스너를 제거한다.
-            recordReference?.removeEventListener(listener)
-        }
-
-        // 제거한 Firebase 리스너 참조를 비운다.
-        recordListener = null
-
-        // 더 이상 사용하지 않는 Firebase 경로 참조도 비운다.
-        recordReference = null
+        // 보통 onStop에서 제거하지만 예외적인 종료에서도 리스너가 남지 않도록 한 번 더 정리
+        detachRecordListener()
 
         // mainHandler가 초기화됐었는지 확인한다.
         if (::mainHandler.isInitialized) { // 그냥 ::없이 했다면 mainHandler의 상자안 객체를 열어 .뒤 명령어를 실행할것이다 :: 있는경우 변수상자를 열지 않고 초기화된 적이 있는지만 확인
@@ -635,7 +737,7 @@ class RecordActivity : AppCompatActivity() {
             mainHandler.removeCallbacksAndMessages(null)
         }
 
-        logLifecycle("onDestroy")
+        logLifecycle("onDestroy - Handler 메시지와 콜백 제거")
         super.onDestroy()
     }
 }

@@ -40,6 +40,10 @@
         <activity
             android:name=".RecordActivity"
             android:exported="false" />
+        <!-- RecordActivity가 명시적 Intent로 실행하고 작성·수정 결과를 돌려받는 입력 전용 Activity -->
+        <activity
+            android:name=".RecordEditorActivity"
+            android:exported="false" />
         <activity
             android:name=".WeatherActivity"
             android:exported="false" />
