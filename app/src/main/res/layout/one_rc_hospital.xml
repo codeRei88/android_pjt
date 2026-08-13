@@ -75,11 +75,38 @@
             android:maxLines="1"
             android:textColor="#3F51B5"
             android:textSize="13sp"
-            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/hospitalAddress"
             tools:text="031-787-2114" />
+
+        <!-- 전화번호를 ACTION_DIAL 암시적 Intent로 전달하는 버튼 -->
+        <Button
+            android:id="@+id/dialBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="4dp"
+            android:text="전화"
+            android:textSize="12sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/openMapBtn"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/hospitalPhone" />
+
+        <!-- 병원 주소를 geo URI로 만들어 ACTION_VIEW 암시적 Intent로 전달하는 버튼 -->
+        <Button
+            android:id="@+id/openMapBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginTop="8dp"
+            android:text="지도"
+            android:textSize="12sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/dialBtn"
+            app:layout_constraintTop_toBottomOf="@id/hospitalPhone" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

@@ -16,7 +16,7 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="94dp"
+        android:minHeight="134dp"
         android:padding="12dp">
 
         <!-- 접종 여부 체크박스 추가 -->
@@ -57,7 +57,6 @@
             android:maxLines="2"
             android:textColor="#5F6368"
             android:textSize="12sp"
-            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@id/remainingDay"
             app:layout_constraintStart_toEndOf="@id/checkBox"
             app:layout_constraintTop_toBottomOf="@id/vaccineName"
@@ -81,6 +80,20 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             tools:text="마감 D-120" />
+
+        <!-- 접종 이름과 계산된 권장 시작일을 캘린더 앱에 보내는 암시적 Intent 버튼 -->
+        <Button
+            android:id="@+id/addCalendarBtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:text="캘린더에 추가"
+            android:textSize="12sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/checkBox"
+            app:layout_constraintTop_toBottomOf="@id/vaccineAge" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

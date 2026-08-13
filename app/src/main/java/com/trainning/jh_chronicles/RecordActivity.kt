@@ -34,9 +34,6 @@ private const val MSG_AVG_STATISTICS_COMPLETE = 3
 class RecordActivity : AppCompatActivity() {
 
     companion object {
-        // 시스템이 Activity를 다시 만들 때 통계 영역의 표시 상태를 복원하기 위한 Bundle key
-        private const val STATE_STATISTICS_EXPANDED = "state_record_statistics_expanded"
-
         // 마지막으로 통계를 계산한 날짜를 화면 회전 전후로 기억하기 위한 Bundle key
         private const val STATE_SELECTED_STATISTICS_DATE = "state_record_selected_statistics_date"
     }
@@ -64,18 +61,17 @@ class RecordActivity : AppCompatActivity() {
     // 날짜가 바뀌었을 때 onResume에서 통계를 다시 계산할 수 있도록 최근 Firebase 기록을 보관
     private var latestEventList: List<RecordData.EventData> = emptyList()
 
-    // 현재 통계가 펼쳐져 있는지와 어떤 날짜를 기준으로 계산했는지 기억하는 UI 상태 변수
-    private var isStatisticsExpanded = true
+    // 어떤 날짜를 기준으로 오늘 통계를 계산했는지 기억하는 UI 상태 변수
     private var selectedStatisticsDate = ""
 
     /*
-     * RecordEditorActivity를 실행한 뒤 작성·수정·삭제 결과를 받기 위한 Activity Result 등록입니다.
-     * StartActivityForResult Contract는 Intent를 입력받아 Activity를 실행하고 ActivityResult를 반환합니다.
-     * 뒤의 람다는 EditorActivity가 setResult() 후 finish() 했을 때 실행되는 사후 처리 Callback입니다.
+     * RecordEditorActivity를 실행한 뒤 작성·수정·삭제 결과를 받기 위한 Activity Result 등록
+     * StartActivityForResult Contract는 Intent를 입력받아 Activity를 실행하고 ActivityResult를 반환
+     * 뒤의 람다는 EditorActivity가 setResult() 후 finish() 했을 때 실행되는 사후 처리 Callback
      */
     private val recordEditorLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { activityResult ->
+        ActivityResultContracts.StartActivityForResult() // 컨트렉트
+    ) { activityResult -> // 콜백
 
         // 취소 버튼이나 시스템 뒤로가기는 RESULT_OK가 아니므로 Firebase를 변경하지 않음
         if (activityResult.resultCode != RESULT_OK) {
@@ -172,7 +168,6 @@ class RecordActivity : AppCompatActivity() {
         )
     }
 
-    // Fragment의 onCreateView 대신 Activity는 onCreate에서 화면을 생성한다.
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         logLifecycle("onCreate - RecyclerView, Handler와 버튼을 최초로 준비")
@@ -182,16 +177,12 @@ class RecordActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         /*
-         * 화면 회전처럼 Activity가 다시 생성된 경우 Bundle에 저장해 둔 UI 상태를 복원합니다.
-         * 현재 화면에는 별도의 날짜 선택기가 없으므로 selectedStatisticsDate는 오늘 통계의 기준 날짜입니다.
+         * 화면 회전처럼 Activity가 다시 생성된 경우 Bundle에 저장해 둔 UI 상태를 복원
+         * 현재 화면에는 별도의 날짜 선택기가 없으므로 selectedStatisticsDate는 오늘 통계의 기준 날짜
          */
-        isStatisticsExpanded =
-            savedInstanceState?.getBoolean(STATE_STATISTICS_EXPANDED) ?: true
         selectedStatisticsDate =
             savedInstanceState?.getString(STATE_SELECTED_STATISTICS_DATE)
                 ?: getCurrentRecordDate()
-        binding.statisticsLayout.visibility =
-            if (isStatisticsExpanded) View.VISIBLE else View.GONE
 
         // 알바생인 헨들러가 백그라운드 쓰레드에서 받은 메세지를 가지고 카운터(화면)에서 할일을 학습 시킴(Handler.CallBack인터페이스)
         mainHandler = Handler(Looper.getMainLooper()) { message ->
@@ -680,10 +671,9 @@ class RecordActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         logLifecycle("onResume - 오늘 날짜 변경 여부 확인")
-
         /*
-         * 홈 화면이나 EditorActivity에 머무는 사이 날짜가 바뀌었는지 확인합니다.
-         * 날짜가 바뀌었다면 최근에 받은 기록을 새 날짜 기준으로 다시 계산합니다.
+         * 홈 화면이나 EditorActivity에 머무는 사이 날짜가 바뀌었는지 확인
+         * 날짜가 바뀌었다면 최근에 받은 기록을 새 날짜 기준으로 다시 계산
          */
         val currentDate = getCurrentRecordDate()
         if (selectedStatisticsDate != currentDate && latestEventList.isNotEmpty()) {
@@ -709,14 +699,10 @@ class RecordActivity : AppCompatActivity() {
     }
 
     /*
-     * 시스템이 Activity를 파괴하고 다시 만들 때 통계 UI 상태와 기준 날짜를 복원하기 위한 Bundle 저장입니다.
-     * Firebase에 저장할 실제 기록이 아니라 잠깐 유지할 화면 상태이므로 onSaveInstanceState를 사용합니다.
+     * 시스템이 Activity를 파괴하고 다시 만들 때 통계 UI 상태와 기준 날짜를 복원하기 위한 Bundle 저장
+     * Firebase에 저장할 실제 기록이 아니라 잠깐 유지할 화면 상태이므로 onSaveInstanceState를 사용
      */
     override fun onSaveInstanceState(outState: Bundle) {
-        // 현재 통계 영역이 보이는 상태인지 Boolean 값으로 저장
-        isStatisticsExpanded = binding.statisticsLayout.visibility == View.VISIBLE
-        outState.putBoolean(STATE_STATISTICS_EXPANDED, isStatisticsExpanded)
-
         // 마지막 통계 기준 날짜를 저장하여 onResume에서 날짜 변경 여부를 다시 비교할 수 있게 함
         outState.putString(STATE_SELECTED_STATISTICS_DATE, selectedStatisticsDate)
 

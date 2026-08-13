@@ -17,9 +17,9 @@ import com.trainning.jh_chronicles.databinding.ActivityDiaryEditorBinding
 class DiaryEditorActivity : AppCompatActivity() {
 
     companion object {
-        /*
-         * DiaryActivity와 DiaryEditorActivity가 같은 이름으로 Intent 데이터를 주고받기 위한 key입니다.
-         * 문자열을 여러 위치에 직접 쓰면 오타가 나도 컴파일러가 찾지 못하므로 const val로 한곳에서 관리합니다.
+        /* 
+         * DiaryActivity와 DiaryEditorActivity가 같은 이름으로 Intent 데이터를 주고받기 위한 key
+         * 문자열을 여러 위치에 직접 쓰면 오타가 나도 컴파일러가 찾지 못하므로 const val로 한곳에서 관리
          */
         const val EXTRA_EDITOR_MODE = "extra_diary_editor_mode"
         const val EXTRA_DIARY_ID = "extra_diary_id"
@@ -36,10 +36,7 @@ class DiaryEditorActivity : AppCompatActivity() {
         const val RESULT_ACTION_SAVE = "result_action_save"
         const val RESULT_ACTION_DELETE = "result_action_delete"
 
-        /*
-         * 기존 DiaryActivity의 Dialog에서 사용하던 SharedPreferences 이름과 세 개의 초안 key입니다.
-         * 초안 기능을 없앤 것이 아니라 실제 입력창이 옮겨온 DiaryEditorActivity로 함께 옮겼습니다.
-         */
+        //로컬DB sharedprefer 관련
         const val DIARY_PREFERENCES_NAME = "diary_prefs"
         const val DRAFT_DATE_KEY = "draft_date"
         const val DRAFT_TITLE_KEY = "draft_title"
@@ -71,7 +68,7 @@ class DiaryEditorActivity : AppCompatActivity() {
         binding = ActivityDiaryEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // 기존 일기 작성 Dialog에서 사용하던 화면 기준 3줄 제한을 그대로 적용
+        // 3줄 제한 적용
         applyThreeLineLimit(binding.contentEdit)
 
         // 새 작성인지 수정인지와 화면 회전 여부를 확인해서 날짜, 제목, 내용을 입력창에 넣음

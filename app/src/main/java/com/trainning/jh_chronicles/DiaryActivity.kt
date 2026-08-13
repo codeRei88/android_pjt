@@ -19,7 +19,7 @@ import com.trainning.jh_chronicles.databinding.ActivityDiaryBinding
 class DiaryActivity : AppCompatActivity() {
 
     companion object {
-        // 시스템에 의해 Activity가 파괴되고 나중에 복원될 때 스크롤위치를 저장하기 위한 번들키
+        // 시스템에 의해 Activity가 파괴되고 나중에 복원될 때 스크롤위치를 저장하기 위한 Bundle key
         private const val STATE_SCROLL_POSITION = "state_diary_scroll_position"
 
         // (시스템에 의해 Activity가 파괴되고 나중에 복원될 때) 사용자가 수정하려고 선택한 일기의 id를 저장하기 위한 Bundle key
@@ -48,23 +48,21 @@ class DiaryActivity : AppCompatActivity() {
 
 
       //DiaryEditorActivity를 실행한 뒤 결과를 돌려받기 위한 Activity Result 계약
-      //예전 startActivityForResult() 방식 대신 현재 권장되는 registerForActivityResult()를 사용합니다.
-      //이 코드는 Activity가 만들어질 때 미리 등록돼 있어야 하므로 onCreate 바깥에 선언합니다.
-
-    private val diaryEditorLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { activityResult ->
+      //계약을 위해 ActivityResultLauncher객체를 담을 변수그릇 선언
+    private val diaryEditorLauncher = registerForActivityResult( //Contract, Callback 두 인수를 받아 ActivityResultLauncher를 반환하는 함수
+        ActivityResultContracts.StartActivityForResult() //Intent를 입력받아 Activity를 실행하고, 결과를 ActivityResult 형태로 반환하는 Contract
+    ) { activityResult -> // 실행된 activity에서 결과값을 받아 실행하는 Callback
 
         // 편집 화면에서 취소하거나 시스템 뒤로가기를 눌렀다면 RESULT_OK가 아니므로 아무것도 저장하지 않음
         if (activityResult.resultCode != RESULT_OK) {
             return@registerForActivityResult
         }
 
-        // DiaryEditorActivity가 setResult()로 돌려준 결과 Intent를 꺼냄
+        // DiaryEditorActivity가 setResult()로 돌려준 결과Intent를 그릇에 담음
         val resultIntent = activityResult.data ?: return@registerForActivityResult
 
         // 같은 편집 Activity가 저장과 삭제 결과를 모두 보내므로 action 문자열로 할 일을 구분함
-        when (resultIntent.getStringExtra(DiaryEditorActivity.EXTRA_RESULT_ACTION)) {
+         when (resultIntent.getStringExtra(DiaryEditorActivity.EXTRA_RESULT_ACTION)) {
             DiaryEditorActivity.RESULT_ACTION_SAVE -> saveDiaryResult(resultIntent)
             DiaryEditorActivity.RESULT_ACTION_DELETE -> deleteDiaryResult(resultIntent)
         }

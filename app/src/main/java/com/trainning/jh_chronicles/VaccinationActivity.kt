@@ -1,8 +1,10 @@
 package com.trainning.jh_chronicles
 
 import android.app.DatePickerDialog
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
+import android.provider.CalendarContract
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -15,11 +17,17 @@ import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
 import com.trainning.jh_chronicles.databinding.ActivityVaccinationBinding
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 import java.util.Calendar
 
 class VaccinationActivity : AppCompatActivity() {
+
+    companion object {
+        // 시스템이 Activity를 다시 만들 때 사용자가 선택한 생년월일을 복원하기 위한 Bundle key
+        private const val STATE_SELECTED_BIRTH_DATE = "state_vaccination_selected_birth_date"
+    }
 
     private lateinit var binding: ActivityVaccinationBinding
 
@@ -45,14 +53,29 @@ class VaccinationActivity : AppCompatActivity() {
     // Fragment의 onCreateView 대신 Activity는 onCreate에서 화면을 생성한다.
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        logLifecycle("onCreate")
+        logLifecycle("onCreate - RecyclerView, 생년월일 버튼과 Firebase 경로 초기화")
 
         binding = ActivityVaccinationBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // 화면 회전 전에 선택한 생년월일이 있다면 Firebase 결과가 도착하기 전에도 먼저 복원
+        birthDate = savedInstanceState
+            ?.getString(STATE_SELECTED_BIRTH_DATE)
+            ?.let { savedDate ->
+                try {
+                    LocalDate.parse(savedDate)
+                } catch (_: DateTimeParseException) {
+                    null
+                }
+            }
+
         setupNavigationButtons() //각 액티비티 이동 지정 메서드
         setupRecyclerView() //리사이클러뷰, 레이아웃메니저 연결, 앱내 저장된 백신데이터 화면에 표시
         setupBirthDateButton() //생년월일 입력버튼을 눌렀을때 생일을 파이어베이스에 저장 및 백신데이터 저장
+
+        // Bundle에서 생년월일을 복원했다면 현재 날짜 기준 D-Day도 함께 다시 계산
+        recalculateDays()
+        refreshVaccineList()
 
         val currentUser = Firebase.auth.currentUser
 
@@ -66,17 +89,20 @@ class VaccinationActivity : AppCompatActivity() {
         userVaccineRef = Firebase.database
             .getReference("vaccine_entries")
             .child(currentUser.uid)
-
-        observeVaccineData() //파이어베이스 경로를 만들었으니 거기에 파견할 리스너를 생성하고 저장소에 백신데이터를 저장하는 메서드
     }
 
     /*
      * RecyclerView와 체크박스 저장 이벤트를 연결합니다.
      */
     private fun setupRecyclerView() {
-        vaccineAdapter = AdapterVaccine { vaccine, isChecked ->
-            saveCompletion(vaccine, isChecked)
-        }
+        vaccineAdapter = AdapterVaccine(
+            onCompletionChanged = { vaccine, isChecked ->
+                saveCompletion(vaccine, isChecked)
+            },
+            onAddToCalendar = { vaccine ->
+                addVaccinationToCalendar(vaccine)
+            }
+        )
 
         binding.vaccineRc.layoutManager =
             LinearLayoutManager(this)
@@ -106,6 +132,9 @@ class VaccinationActivity : AppCompatActivity() {
     //백신데이터가 업데이트 되면 저장소에가서 최신 데이터를 가지고와 어뎁터에게 넘겨서 화면에 띄우게 해주는 메서드
     // 단 파이어베이스 데이터를 가저올때 기존 앱내 백신데이터와 비교를 해서 기존 앱에 추가된 백신이 있다면 그것도 가져옴
     private fun observeVaccineData() {
+        // onStart가 다시 호출돼도 같은 Firebase 리스너가 중복 등록되지 않도록 확인
+        if (vaccineValueListener != null || !::userVaccineRef.isInitialized) return
+
         //파이어베이스 백신저장소에 파견할 리스너 생성
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
@@ -154,6 +183,16 @@ class VaccinationActivity : AppCompatActivity() {
 
         vaccineValueListener = listener
         userVaccineRef.addValueEventListener(listener)
+    }
+
+    // onStart에서 연결한 Firebase 리스너를 화면이 완전히 가려지는 onStop에서 제거
+    private fun stopObservingVaccineData() {
+        vaccineValueListener?.let { listener ->
+            if (::userVaccineRef.isInitialized) {
+                userVaccineRef.removeEventListener(listener)
+            }
+        }
+        vaccineValueListener = null
     }
 
     // 파이어베이스에 저장된 생년월일을 읽습니다 달력의 날짜형태로 가저옴
@@ -354,6 +393,62 @@ class VaccinationActivity : AppCompatActivity() {
             }
     }
 
+    /*
+     * 선택한 접종의 권장 시작일을 휴대전화 캘린더 앱으로 보내는 암시적 Intent입니다.
+     * 캘린더 앱이 실제 저장 화면을 보여주므로 이 앱에는 캘린더 쓰기 권한이 필요하지 않습니다.
+     */
+    private fun addVaccinationToCalendar(vaccine: VaccineData) {
+        val currentBirthDate = birthDate
+
+        // 접종 날짜는 생년월일을 기준으로 계산하므로 생일 입력 전에는 캘린더를 만들 수 없음
+        if (currentBirthDate == null) {
+            Toast.makeText(
+                this,
+                "먼저 아이 생년월일을 입력해주세요.",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        // 기존 접종 계산과 같은 targetMonths와 extraDays를 이용하여 권장 접종 시작일 계산
+        val vaccinationDate = currentBirthDate
+            .plusMonths(vaccine.targetMonths.toLong())
+            .plusDays(vaccine.extraDays.toLong())
+
+        // 캘린더에 오전 9시부터 한 시간 일정으로 미리 채워 보여주기 위한 밀리초 값
+        val startTime = vaccinationDate
+            .atTime(9, 0)
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+        val endTime = vaccinationDate
+            .atTime(10, 0)
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+
+        val calendarIntent = Intent(Intent.ACTION_INSERT).apply {
+            // 이 Intent가 일반 데이터가 아니라 캘린더 일정 추가 요청임을 URI로 지정
+            data = CalendarContract.Events.CONTENT_URI
+
+            // 캘린더 작성 화면에 접종 이름, 권장 설명과 시작·종료 시간을 미리 입력
+            putExtra(CalendarContract.Events.TITLE, "예방접종: ${vaccine.name}")
+            putExtra(CalendarContract.Events.DESCRIPTION, vaccine.recommendedAge)
+            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startTime)
+            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endTime)
+        }
+
+        try {
+            startActivity(calendarIntent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(
+                this,
+                "일정을 추가할 캘린더 앱이 없습니다.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
     //생년월일을 화면에 표시하고 오늘 생후 며칠됐는지 업데이트해서 화면에 뿌리는 메서드
     private fun updateBabyAgeText() {
         val currentBirthDate = birthDate
@@ -395,12 +490,22 @@ class VaccinationActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        logLifecycle("onStart")
+        logLifecycle("onStart - Firebase 접종 리스너 연결")
+
+        // Activity가 사용자에게 보이는 동안에만 Firebase 접종 변경사항을 관찰
+        observeVaccineData()
     }
 
     override fun onResume() {
         super.onResume()
-        logLifecycle("onResume")
+        logLifecycle("onResume - LocalDate.now() 기준 D-Day 재계산")
+
+        /*
+         * 다른 Activity나 캘린더 앱에 머무는 동안 날짜가 바뀔 수 있으므로
+         * 화면이 다시 전면에 나타날 때 현재 날짜 기준 생후 일수와 모든 D-Day를 다시 계산합니다.
+         */
+        recalculateDays()
+        refreshVaccineList()
     }
 
     override fun onPause() {
@@ -409,7 +514,9 @@ class VaccinationActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
-        logLifecycle("onStop")
+        // 화면이 완전히 가려진 동안에는 Firebase 변경 콜백이 필요하지 않으므로 리스너 제거
+        stopObservingVaccineData()
+        logLifecycle("onStop - Firebase 접종 리스너 제거")
         super.onStop()
     }
 
@@ -418,16 +525,22 @@ class VaccinationActivity : AppCompatActivity() {
         logLifecycle("onRestart")
     }
 
+    /*
+     * 화면 회전처럼 시스템이 Activity를 다시 만들 때 선택한 생년월일을 유지하기 위한 Bundle 저장입니다.
+     * 실제 영구 저장은 Firebase가 담당하고, Bundle은 Firebase 결과가 다시 도착하기 전의 UI 상태를 복원합니다.
+     */
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(STATE_SELECTED_BIRTH_DATE, birthDate?.toString())
+        logLifecycle("onSaveInstanceState - 선택한 생년월일 저장")
+        super.onSaveInstanceState(outState)
+    }
+
     // Fragment의 onDestroyView 대신 Activity에서는 onDestroy에서 리스너를 제거한다.
     override fun onDestroy() {
-        vaccineValueListener?.let { listener ->
-            if (::userVaccineRef.isInitialized) {
-                userVaccineRef.removeEventListener(listener)
-            }
-        }
-
-        vaccineValueListener = null
-        logLifecycle("onDestroy")
+        // 보통 onStop에서 제거되지만 예외적인 종료에도 리스너가 남지 않도록 한 번 더 정리
+        stopObservingVaccineData()
+        binding.vaccineRc.adapter = null
+        logLifecycle("onDestroy - Firebase 리스너와 RecyclerView 참조 정리")
         super.onDestroy()
     }
 }
