@@ -66,7 +66,7 @@ class RecordActivity : AppCompatActivity() {
 
     /*
      * RecordEditorActivity를 실행한 뒤 작성·수정·삭제 결과를 받기 위한 Activity Result 등록
-     * StartActivityForResult Contract는 Intent를 입력받아 Activity를 실행하고 ActivityResult를 반환
+     * Intent를 입력받아 Activity를 실행하고 ActivityResult를 반환
      * 뒤의 람다는 EditorActivity가 setResult() 후 finish() 했을 때 실행되는 사후 처리 Callback
      */
     private val recordEditorLauncher = registerForActivityResult(
@@ -187,48 +187,48 @@ class RecordActivity : AppCompatActivity() {
         // 알바생인 헨들러가 백그라운드 쓰레드에서 받은 메세지를 가지고 카운터(화면)에서 할일을 학습 시킴(Handler.CallBack인터페이스)
         mainHandler = Handler(Looper.getMainLooper()) { message ->
 
-            // Activity가 이미 종료 중이라면 UI를 변경하지 않는다.
+            // Activity가 이미 종료 중이라면 UI를 변경하지 않음
             if (isFinishing || isDestroyed) {
                 true
             } else {
-                // 배달물건이 어떤 종류인지 물품번호인 message.what을 확인한다.
+                // 배달물건이 어떤 종류인지 물품번호인 message.what을 확인
                 when (message.what) {
 
-                    // 물품 번호가 1인 통계 계산 완료인 경우다.
+                    // 물품 번호가 1인 통계 계산 완료인 경우
                     MSG_STATISTICS_COMPLETE -> {
 
-                        // 통계 계산이 끝났으므로 로딩 표시를 숨긴다.
+                        // 통계 계산이 끝났으므로 로딩 표시를 숨김
                         binding.statisticsProgress.visibility = View.GONE
 
-                        // 택배의 obj에서 DailySummary 물건을 꺼낸다.
+                        // 택배의 obj에서 DailySummary 물건을 꺼냄
                         val summary = message.obj as? DailySummary //DailySummary로 형변환하고 안되면 null반환해라
 
-                        // 내용물이 정상적인 DailySummary일 때만 화면에 표시한다.
+                        // 내용물이 정상적인 DailySummary일 때만 화면에 표시
                         if (summary != null) {
 
-                            // 우유 총량을 TextView에 표시한다.
+                            // 우유 총량을 TextView에 표시
                             binding.totalMilkText.text =
                                 "오늘 우유: ${summary.totalMilk}ml"
 
-                            // 이유식 총량을 TextView에 표시한다.
+                            // 이유식 총량을 TextView에 표시
                             binding.totalMealText.text =
                                 "오늘 이유식: ${summary.totalMeal}ml"
 
-                            // 수면 총시간을 TextView에 표시한다.
+                            // 수면 총시간을 TextView에 표시
                             binding.totalSleepText.text =
                                 "오늘 수면: ${summary.totalSleepMinutes}분"
 
-                            // 배변 횟수를 TextView에 표시한다.
+                            // 배변 횟수를 TextView에 표시
                             binding.poopCountText.text =
                                 "오늘 배변: ${summary.poopCount}회"
                         }
                     }
 
-                    // 물품 번호가 3인 평균 계산 완료인 경우다.
+                    // 물품 번호가 3인 평균 계산 완료인 경우
                     MSG_AVG_STATISTICS_COMPLETE -> {
                         binding.statisticsProgress.visibility = View.GONE
 
-                        //메세지 택배 상자를 까서 AvgSummary데이터를 꺼내 변수그릇에 담는다.
+                        //메세지 택배 상자를 까서 AvgSummary데이터를 꺼내 변수그릇에 담음
                         val avg = message.obj as? AvgSummary
                         if (avg != null) {
                             binding.avgMilkText.text = "평균 우유량 : ${avg.avgMilk}ml"
@@ -238,10 +238,10 @@ class RecordActivity : AppCompatActivity() {
                             binding.calculationDaysText.text = "계산일 수 : ${avg.countDay}일"
                         }
                     }
-                    // 송장 번호가 통계 계산 실패인 경우다.
+                    // 송장 번호가 통계 계산 실패인 경우
                     MSG_STATISTICS_FAILED -> {
 
-                        // 계산 작업이 끝났으므로 로딩 표시를 숨긴다.
+                        // 계산 작업이 끝났으므로 로딩 표시를 숨김
                         binding.statisticsProgress.visibility = View.GONE
 
                         // 택배의 obj에서 오류 문장을 꺼낸다. 문장이 아니거나 비어있으면 null을 뱉고 null일경우 "통계 계산에 실패했습니다." 출력
@@ -326,12 +326,8 @@ class RecordActivity : AppCompatActivity() {
      * 새 기록 작성 화면을 여는 명시적 Intent입니다.
      * 어떤 버튼을 눌렀는지 RecordEditorActivity가 알 수 있도록 종류·힌트·단위를 Extra로 전달합니다.
      */
-    private fun openRecordEditorForCreate(
-        eventTitle: String,
-        inputHint: String,
-        unit: String
-    ) {
-        // 기존 showRecordDialog()처럼 기록 버튼을 누른 순간의 날짜와 시간을 먼저 만듦
+    private fun openRecordEditorForCreate(eventTitle: String, inputHint: String, unit: String) {
+        // 기록 버튼을 누른 순간의 날짜와 시간을 먼저 만듦
         val clickedAt = Date()
         val clickedTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(clickedAt)
         val clickedDate = SimpleDateFormat("yyyy년 M월 d일", Locale.KOREAN).format(clickedAt)
@@ -357,8 +353,8 @@ class RecordActivity : AppCompatActivity() {
     }
 
     /*
-     * 기존 기록 수정 화면을 여는 명시적 Intent입니다.
-     * 기존 Dialog에 넣었던 id, 날짜, 시간, 제목, 상세 내용을 putExtra()로 그대로 전달합니다.
+     * 기존 기록 수정 화면을 여는 명시적 Intent
+     * 기존 Dialog에 넣었던 id, 날짜, 시간, 제목, 상세 내용을 putExtra()로 그대로 전달
      */
     private fun openRecordEditorForEdit(clickedRV: RecordData.EventData) {
         val editorIntent = Intent(this, RecordEditorActivity::class.java).apply {
@@ -382,10 +378,10 @@ class RecordActivity : AppCompatActivity() {
         val returnedRecordId =
             resultIntent.getStringExtra(RecordEditorActivity.EXTRA_RECORD_ID).orEmpty()
 
-        val targetRef = if (returnedRecordId.isBlank()) {
-            myRef.push()
+        val targetRef = if (returnedRecordId.isBlank()) { // 기록을 저장할 경로를 변수에 저장
+            myRef.push() //id 없음 id를 이름으로한 폴더 생성해서 경로추가
         } else {
-            myRef.child(returnedRecordId)
+            myRef.child(returnedRecordId) // 기존 기록인경우 기존 id에 해당하는 경로 선택
         }
 
         val finalRecordId = targetRef.key ?: return
@@ -471,18 +467,18 @@ class RecordActivity : AppCompatActivity() {
                     dataList.add(eventData)
                 }
 
-                // 변경된 기록 목록을 RecyclerView에 다시 표시한다.
+                // 변경된 기록 목록을 RecyclerView에 다시 표시
                 recordAdapter.notifyDataSetChanged()
 
-                // 백그라운드 Thread가 안전하게 사용할 수 있도록 리스트를 복사한다.
-                // toList() 수정이 안되는 복사본을 만드는것, 원본을 주지 않는이유는 계산 중 데이터가 수정될 경우 에러를 막기 위함.
+                // 백그라운드 Thread가 안전하게 사용할 수 있도록 리스트를 복사
+                // toList() 수정이 안되는 복사본을 만드는것, 원본을 주지 않는이유는 계산 중 데이터가 수정될 경우 에러를 막기 위함
                 latestEventList = eventList.toList()
 
                 // 데이터가 도착한 시점의 오늘 날짜를 기준으로 기존 통계 계산을 실행
                 startTodayStatisticsCalculation(latestEventList, getCurrentRecordDate())
             }
 
-            // Firebase 데이터를 가져오지 못했을 때 호출된다.
+            // Firebase 데이터를 가져오지 못했을 때 호출
             override fun onCancelled(error: DatabaseError) {
 
                 // Firebase 오류 내용을 사용자용 문장으로 만든다.

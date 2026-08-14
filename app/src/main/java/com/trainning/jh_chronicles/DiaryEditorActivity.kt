@@ -56,8 +56,8 @@ class DiaryEditorActivity : AppCompatActivity() {
     }
 
     /*
-     * setResult()를 보낸 뒤 finish()가 실행되면 onPause()도 호출됩니다.
-     * 이때 저장을 완료한 내용을 다시 초안으로 저장하지 않도록 결과 전송 여부를 기억합니다.
+     * setResult()를 보낸 뒤 finish()가 실행되면 onPause()도 호출됨
+     * 이때 저장을 완료한 내용을 다시 초안으로 저장하지 않도록 결과 전송 여부를 기억
      */
     private var isResultSent = false
 
@@ -102,8 +102,8 @@ class DiaryEditorActivity : AppCompatActivity() {
         }
 
         /*
-         * 기존 코드의 "입력 할때 마다 저장하기" 기능을 그대로 유지합니다.
-         * 기존 일기 수정 내용이 새 일기 초안을 덮어쓰면 안 되므로 새 작성 모드에서만 실행합니다.
+         * 입력 할때 마다 저장하기
+         * 기존 일기 수정 내용이 새 일기 초안을 덮어쓰면 안 되므로 새 작성 모드에서만 실행
          */
         if (editorMode == MODE_CREATE) {
             binding.titleEdit.doAfterTextChanged {
@@ -117,8 +117,8 @@ class DiaryEditorActivity : AppCompatActivity() {
     }
 
     /*
-     * 편집 화면에 처음 표시할 내용을 정하는 메서드입니다.
-     * 우선순위는 화면 회전 Bundle → 수정 Intent Extra → 새 일기 SharedPreferences 초안 순서입니다.
+     * 편집 화면에 처음 표시할 내용을 정하는 메서드
+     * 우선순위는 화면 회전 Bundle → 수정 Intent Extra → 새 일기 SharedPreferences 초안
      */
     private fun restoreEditorContent(savedInstanceState: Bundle?) {
         // 화면 회전으로 Activity가 다시 생성된 경우에는 회전 직전 입력값을 가장 먼저 복원
@@ -131,8 +131,7 @@ class DiaryEditorActivity : AppCompatActivity() {
 
         if (editorMode == MODE_EDIT) {
             /*
-             * 수정 모드에서는 DiaryActivity가 putExtra()로 보낸 기존 일기 값을 사용합니다.
-             * 기존 일기 수정은 새 일기 초안과 관계없으므로 SharedPreferences를 읽지 않습니다.
+             * 수정 모드에서는 DiaryActivity가 putExtra()로 보낸 기존 일기 값을 사용
              */
             binding.dateSelectBtn.text =
                 intent.getStringExtra(EXTRA_DIARY_DATE) ?: "날짜기입"
@@ -144,8 +143,8 @@ class DiaryEditorActivity : AppCompatActivity() {
             )
         } else {
             /*
-             * 새 일기 작성 모드에서는 기존 Dialog 코드와 똑같이 diary_prefs에서 초안을 불러옵니다.
-             * 앱을 나갔다 돌아오거나 작성 화면을 취소했다 다시 열어도 작성 중인 내용이 복원됩니다.
+             * 새 일기 작성 모드에서는 기존 Dialog 코드와 똑같이 diary_prefs에서 초안을 불러옴
+             * 앱을 나갔다 돌아오거나 작성 화면을 취소했다 다시 열어도 작성 중인 내용이 복원
              */
             val sharedPreferences =
                 getSharedPreferences(DIARY_PREFERENCES_NAME, MODE_PRIVATE)
@@ -172,7 +171,7 @@ class DiaryEditorActivity : AppCompatActivity() {
             val selectedDate = "${selectedYear}년 ${selectedMonth + 1}월 ${dayOfMonth}일"
             binding.dateSelectBtn.text = selectedDate
 
-            // 기존 코드처럼 날짜를 고른 순간에도 SharedPreferences 초안을 바로 갱신
+            // 날짜를 고른 순간에도 SharedPreferences 초안을 바로 갱신
             if (editorMode == MODE_CREATE) {
                 saveDraftToSharedPreferences()
             }
@@ -181,9 +180,9 @@ class DiaryEditorActivity : AppCompatActivity() {
     }
 
     /*
-     * 사용자가 저장 버튼을 눌렀을 때 호출됩니다.
-     * 이 Activity는 Firebase 경로를 소유하지 않으므로 setValue()를 하지 않고,
-     * 날짜·제목·내용을 결과 Intent에 담아 DiaryActivity에 반환합니다.
+     * 사용자가 저장 버튼을 눌렀을 때 호출
+     * 편집 Activity는 Firebase 경로를 소유하지 않으므로 setValue()를 하지 않고,
+     * 날짜·제목·내용을 결과 Intent에 담아 DiaryActivity에 반환
      */
     private fun returnSaveResult() {
         // 화면 입력값들을 앞뒤 공백을 정리하여 각각 변수에 저장
@@ -253,8 +252,7 @@ class DiaryEditorActivity : AppCompatActivity() {
     }
 
     /*
-     * 기존 DiaryActivity Dialog에서 사용하던 SharedPreferences 초안 저장 기능입니다.
-     * 입력할 때마다 호출하고 onPause에서도 호출하여 예상하지 못한 화면 전환에도 내용을 보관합니다.
+     * 입력할 때마다 호출하고 onPause에서도 호출하여 예상하지 못한 화면 전환에도 내용을 보관
      */
     private fun saveDraftToSharedPreferences() {
         // 기존 일기 수정값은 새 일기 초안이 아니므로 새 작성 모드가 아니면 저장하지 않음
@@ -353,8 +351,8 @@ class DiaryEditorActivity : AppCompatActivity() {
 
     override fun onPause() {
         /*
-         * 홈 버튼, 공유 앱 실행, 시스템 뒤로가기 등으로 편집 Activity가 가려질 때 호출됩니다.
-         * 기존의 입력할 때마다 저장하는 기능에 더해 마지막 상태를 한 번 더 SharedPreferences에 저장합니다.
+         * 홈 버튼, 공유 앱 실행, 시스템 뒤로가기 등으로 편집 Activity가 가려질 때 호출
+         * 기존의 입력할 때마다 저장하는 기능에 더해 마지막 상태를 한 번 더 SharedPreferences에 저장
          */
         saveDraftToSharedPreferences()
         logLifecycle("onPause - 작성 중인 새 일기 초안을 SharedPreferences에 저장")
@@ -362,8 +360,8 @@ class DiaryEditorActivity : AppCompatActivity() {
     }
 
     /*
-     * 화면 회전으로 편집 Activity가 재생성될 때 입력 중인 내용을 복원하기 위한 Bundle 저장입니다.
-     * SharedPreferences는 장기 초안, Bundle은 현재 화면의 일시적인 UI 상태라는 차이가 있습니다.
+     * 화면 회전으로 편집 Activity가 재생성될 때 입력 중인 내용을 복원하기 위한 Bundle 저장
+     * SharedPreferences는 장기 초안, Bundle은 현재 화면의 일시적인 UI 상태 저장
      */
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString(STATE_DATE, binding.dateSelectBtn.text.toString())

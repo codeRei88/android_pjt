@@ -1,10 +1,8 @@
 package com.trainning.jh_chronicles
 
 import android.app.DatePickerDialog
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
-import android.provider.CalendarContract
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -17,7 +15,6 @@ import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
 import com.trainning.jh_chronicles.databinding.ActivityVaccinationBinding
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 import java.util.Calendar
@@ -95,14 +92,9 @@ class VaccinationActivity : AppCompatActivity() {
      * RecyclerView와 체크박스 저장 이벤트를 연결합니다.
      */
     private fun setupRecyclerView() {
-        vaccineAdapter = AdapterVaccine(
-            onCompletionChanged = { vaccine, isChecked ->
-                saveCompletion(vaccine, isChecked)
-            },
-            onAddToCalendar = { vaccine ->
-                addVaccinationToCalendar(vaccine)
-            }
-        )
+        vaccineAdapter = AdapterVaccine { vaccine, isChecked ->
+            saveCompletion(vaccine, isChecked)
+        }
 
         binding.vaccineRc.layoutManager =
             LinearLayoutManager(this)
@@ -391,62 +383,6 @@ class VaccinationActivity : AppCompatActivity() {
                     Toast.LENGTH_SHORT
                 ).show()
             }
-    }
-
-    /*
-     * 선택한 접종의 권장 시작일을 휴대전화 캘린더 앱으로 보내는 암시적 Intent입니다.
-     * 캘린더 앱이 실제 저장 화면을 보여주므로 이 앱에는 캘린더 쓰기 권한이 필요하지 않습니다.
-     */
-    private fun addVaccinationToCalendar(vaccine: VaccineData) {
-        val currentBirthDate = birthDate
-
-        // 접종 날짜는 생년월일을 기준으로 계산하므로 생일 입력 전에는 캘린더를 만들 수 없음
-        if (currentBirthDate == null) {
-            Toast.makeText(
-                this,
-                "먼저 아이 생년월일을 입력해주세요.",
-                Toast.LENGTH_SHORT
-            ).show()
-            return
-        }
-
-        // 기존 접종 계산과 같은 targetMonths와 extraDays를 이용하여 권장 접종 시작일 계산
-        val vaccinationDate = currentBirthDate
-            .plusMonths(vaccine.targetMonths.toLong())
-            .plusDays(vaccine.extraDays.toLong())
-
-        // 캘린더에 오전 9시부터 한 시간 일정으로 미리 채워 보여주기 위한 밀리초 값
-        val startTime = vaccinationDate
-            .atTime(9, 0)
-            .atZone(ZoneId.systemDefault())
-            .toInstant()
-            .toEpochMilli()
-        val endTime = vaccinationDate
-            .atTime(10, 0)
-            .atZone(ZoneId.systemDefault())
-            .toInstant()
-            .toEpochMilli()
-
-        val calendarIntent = Intent(Intent.ACTION_INSERT).apply {
-            // 이 Intent가 일반 데이터가 아니라 캘린더 일정 추가 요청임을 URI로 지정
-            data = CalendarContract.Events.CONTENT_URI
-
-            // 캘린더 작성 화면에 접종 이름, 권장 설명과 시작·종료 시간을 미리 입력
-            putExtra(CalendarContract.Events.TITLE, "예방접종: ${vaccine.name}")
-            putExtra(CalendarContract.Events.DESCRIPTION, vaccine.recommendedAge)
-            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startTime)
-            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endTime)
-        }
-
-        try {
-            startActivity(calendarIntent)
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(
-                this,
-                "일정을 추가할 캘린더 앱이 없습니다.",
-                Toast.LENGTH_SHORT
-            ).show()
-        }
     }
 
     //생년월일을 화면에 표시하고 오늘 생후 며칠됐는지 업데이트해서 화면에 뿌리는 메서드

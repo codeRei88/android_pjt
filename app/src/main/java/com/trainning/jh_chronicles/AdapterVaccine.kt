@@ -10,8 +10,7 @@ import com.trainning.jh_chronicles.databinding.OneRcVaccinationBinding
 import kotlin.math.abs
 
 class AdapterVaccine(
-    private val onCompletionChanged: (VaccineData, Boolean) -> Unit, // 체크박스 변경 시 액티비티에 저장요청하기 위한 콜백 메서드
-    private val onAddToCalendar: (VaccineData) -> Unit // 캘린더 버튼 클릭 시 Activity에 암시적 Intent 실행 요청
+    private val onCompletionChanged: (VaccineData, Boolean) -> Unit // 체크박스 변경 시 액티비티에 저장요청하기 위한 콜백 메서드
 ) : RecyclerView.Adapter<AdapterVaccine.VaccineViewHolder>() {
 
     private val vaccineList = mutableListOf<VaccineData>() //어뎁터 가지고 있는 백신리스트 처음엔 비어있다(액티비티로부터 받아와야함)
@@ -50,12 +49,6 @@ class AdapterVaccine(
             updateTextStyle(vaccineName, item.complete)
             updateTextStyle(vaccineAge, item.complete)
             showRemainingDay(remainingDay, item)
-
-            // 생년월일이 있어 접종 권장 날짜를 계산할 수 있을 때만 캘린더 버튼 사용 가능
-            addCalendarBtn.isEnabled = daysSinceBirth != null
-            addCalendarBtn.setOnClickListener {
-                onAddToCalendar(item)
-            }
 
             checkBox.setOnCheckedChangeListener { _, isChecked ->
                 updateTextStyle(vaccineName, isChecked)

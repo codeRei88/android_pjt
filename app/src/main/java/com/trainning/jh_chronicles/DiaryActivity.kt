@@ -132,24 +132,20 @@ class DiaryActivity : AppCompatActivity() {
         }
     }
 
-    /*
-     * 새 일기 작성 화면을 여는 명시적 Intent입니다.
-     * 실행할 클래스가 DiaryEditorActivity::class.java로 정확히 지정되어 있으므로 명시적 Intent입니다.
-     */
+
+    //새 일기 작성 화면을 여는 명시적 Intent
     private fun openDiaryEditorForCreate() {
         val editorIntent = Intent(this, DiaryEditorActivity::class.java).apply {
             // 같은 편집 화면이 작성과 수정을 모두 담당하므로 새 일기 작성 모드임을 Extra로 전달
             putExtra(DiaryEditorActivity.EXTRA_EDITOR_MODE, DiaryEditorActivity.MODE_CREATE)
         }
-
-        // startActivity()가 아니라 launcher.launch()로 실행해야 편집 Activity의 결과를 돌려받을 수 있음
+        // startActivity()가 아니라 launcher.launch()로 실행해야 편집 Activity의 결과를 돌려받을 수 있음(사후처리)
         diaryEditorLauncher.launch(editorIntent)
     }
 
-    /*
-     * 기존 일기 수정 화면을 여는 명시적 Intent입니다.
-     * 과제에서 확인할 수 있도록 id, 날짜, 제목, 내용을 각각 putExtra()로 전달합니다.
-     */
+
+     //기존 일기 수정 화면을 여는 명시적 Intent
+     //과제에서 확인할 수 있도록 id, 날짜, 제목, 내용을 각각 putExtra()로 전달
     private fun openDiaryEditorForEdit(clickedDiary: ItemData) {
         val editorIntent = Intent(this, DiaryEditorActivity::class.java).apply {
             // 편집 화면에게 새 글 작성이 아니라 기존 글 수정이라는 것을 알려줌
@@ -178,8 +174,7 @@ class DiaryActivity : AppCompatActivity() {
      */
     private fun saveDiaryResult(resultIntent: Intent) {
         // 편집 화면이 돌려준 일기 id를 가져옴. 새 일기는 아직 id가 없으므로 빈 문자열임
-        val returnedDiaryId =
-            resultIntent.getStringExtra(DiaryEditorActivity.EXTRA_DIARY_ID).orEmpty()
+        val returnedDiaryId = resultIntent.getStringExtra(DiaryEditorActivity.EXTRA_DIARY_ID).orEmpty()
 
         // id가 비어 있으면 push()로 새 Firebase 경로를 만들고, id가 있으면 기존 경로를 선택함
         val targetRef = if (returnedDiaryId.isBlank()) {
@@ -206,8 +201,8 @@ class DiaryActivity : AppCompatActivity() {
         targetRef.setValue(returnedDiary)
             .addOnSuccessListener {
                 /*
-                 * 새 일기가 Firebase에 정상 저장된 뒤에만 SharedPreferences 초안을 삭제합니다.
-                 * 저장에 실패했는데 초안을 먼저 지우면 사용자가 작성한 내용을 잃을 수 있기 때문입니다.
+                 * 새 일기가 Firebase에 정상 저장된 뒤에만 SharedPreferences 초안을 삭제
+                 * 저장에 실패했는데 초안을 먼저 지우면 사용자가 작성한 내용을 잃을 수 있기 때문
                  */
                 if (isNewDiary) {
                     clearDiaryDraft()
@@ -301,9 +296,8 @@ class DiaryActivity : AppCompatActivity() {
 
     override fun onPause() {
         /*
-         * 작성 입력창은 이제 DiaryEditorActivity가 가지고 있습니다.
-         * 따라서 실제 초안 저장은 DiaryEditorActivity.onPause()에서 수행하고,
-         * DiaryActivity는 목록 화면이 잠시 가려졌다는 생명주기 로그만 남깁니다.
+         * 작성 입력창은 이제 DiaryEditorActivity가 가지고 있음
+         * 따라서 초안 저장은 DiaryEditorActivity.onPause()에서 수행
          */
         logLifecycle("onPause - 편집 Activity 또는 다른 화면이 앞에 나타남")
         super.onPause()
@@ -322,8 +316,8 @@ class DiaryActivity : AppCompatActivity() {
     }
 
     /*
-     * 화면 회전처럼 Activity가 파괴됐다 다시 만들어질 때도 사용자가 보던 위치를 복원하기 위한 메서드입니다.
-     * Firebase에 저장할 데이터가 아니라 잠깐 유지할 UI 상태이므로 Bundle을 사용합니다.
+     * 화면 회전처럼 Activity가 파괴됐다 다시 만들어질 때도 사용자가 보던 위치를 복원하기 위한 메서드
+     * Firebase에 저장할 데이터가 아니라 잠깐 유지할 UI 상태이므로 Bundle을 사용
      */
     override fun onSaveInstanceState(outState: Bundle) {
         // 현재 RecyclerView 화면에서 가장 위에 보이는 항목의 위치를 가져옴

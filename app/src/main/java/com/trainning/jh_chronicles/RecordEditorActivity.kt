@@ -54,7 +54,7 @@ class RecordEditorActivity : AppCompatActivity() {
         binding = ActivityRecordEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // 기존 Dialog 화면과 똑같이 제목, 입력값, 수면 종류, 버튼 상태를 설정
+        // 제목, 입력값, 수면 종류, 버튼 상태를 설정
         restoreEditorContent(savedInstanceState)
 
         // 저장 버튼을 누르면 Firebase에 직접 저장하지 않고 결과 Intent를 RecordActivity로 반환
@@ -75,8 +75,8 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     /*
-     * 기존 showRecordDialog()와 showEditDialog()가 DialogBinding에 넣던 값을 Activity 화면에 그대로 넣습니다.
-     * 우선순위는 화면 회전 Bundle → 수정 Intent Extra → 새 작성 Intent Extra 순서입니다.
+     * 편집화면 복원시 우선순위에 맞춰 데이터를 복원해 오는 메서드
+     * 우선순위는 화면 회전 Bundle -> 수정 Intent Extra -> 새 작성 Intent Extra 순서
      */
     private fun restoreEditorContent(savedInstanceState: Bundle?) {
         // 작성 버튼에서 보낸 우유·맘마·수면·배변 또는 수정할 기존 제목을 화면 제목으로 표시
@@ -91,7 +91,7 @@ class RecordEditorActivity : AppCompatActivity() {
         binding.deleteBtn.visibility = if (editorMode == MODE_EDIT) View.VISIBLE else View.GONE
         binding.saveBtn.text = if (editorMode == MODE_EDIT) "수정" else "저장"
 
-        // 기존 코드처럼 수면 기록에만 낮잠·밤잠 RadioGroup을 표시
+        // 수면 기록에만 낮잠·밤잠 RadioGroup을 표시
         val isSleepRecord = eventTitle.startsWith("수면")
         binding.sleepTypeGroup.visibility = if (isSleepRecord) View.VISIBLE else View.GONE
 
@@ -105,14 +105,13 @@ class RecordEditorActivity : AppCompatActivity() {
             if (isSleepRecord) {
                 binding.napRadioBtn.isChecked =
                     savedInstanceState.getBoolean(STATE_NAP_SELECTED, true)
-                binding.nightSleepRadioBtn.isChecked =
-                    !binding.napRadioBtn.isChecked
+                binding.nightSleepRadioBtn.isChecked = !binding.napRadioBtn.isChecked
             }
             return
         }
 
         if (editorMode == MODE_EDIT) {
-            // 기존 showEditDialog()처럼 클릭한 기록의 상세 값을 입력창에 미리 표시
+            // 기록화면에서 보낸 데이터를 그대로 표시
             binding.detailInput.setText(
                 intent.getStringExtra(EXTRA_RECORD_DETAIL).orEmpty()
             )
@@ -129,13 +128,12 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     /*
-     * 저장 버튼의 기존 입력 검사와 수면 제목 만들기 기능은 그대로 유지합니다.
-     * 차이점은 이 Activity에서 Firebase에 저장하지 않고 결과 Intent를 만들어 돌려준다는 점입니다.
+     * 이 Activity에서 Firebase에 저장하지 않고 결과 Intent를 만들어 돌려줌
      */
     private fun returnSaveResult() {
         val inputValue = binding.detailInput.text.toString()
 
-        // 기존 Dialog와 똑같이 아무 내용도 입력하지 않으면 저장하지 않고 EditText에 오류 표시
+        // 아무 내용도 입력하지 않으면 저장하지 않고 EditText에 오류 표시
         if (inputValue.isBlank()) {
             binding.detailInput.error = "내용을 입력해주세요"
             return
@@ -153,8 +151,8 @@ class RecordEditorActivity : AppCompatActivity() {
         }
 
         /*
-         * 새 작성은 기존 showRecordDialog()처럼 입력값 뒤에 (ml), (분) 단위를 붙입니다.
-         * 수정은 기존 showEditDialog()처럼 입력창에 보이는 문자열 자체를 그대로 반환합니다.
+         * 새 작성은 입력값 뒤에 (ml), (분) 단위를 붙임
+         * 수정은 기존 showEditDialog()처럼 입력창에 보이는 문자열 자체를 그대로 반환
          */
         val finalDetail = if (editorMode == MODE_CREATE) {
             inputValue + intent.getStringExtra(EXTRA_INPUT_UNIT).orEmpty()
@@ -163,8 +161,8 @@ class RecordEditorActivity : AppCompatActivity() {
         }
 
         /*
-         * 새 작성과 수정 모두 RecordActivity가 보낸 날짜·시간을 그대로 유지합니다.
-         * 새 작성은 기록 버튼을 누른 순간, 수정은 기존 Firebase 기록의 날짜·시간입니다.
+         * 새 작성과 수정 모두 RecordActivity가 보낸 날짜·시간을 그대로 유지
+         * 새 작성은 기록 버튼을 누른 순간, 수정은 기존 Firebase 기록의 날짜·시간
          */
         val finalTime = intent.getStringExtra(EXTRA_RECORD_TIME).orEmpty()
         val finalDate = intent.getStringExtra(EXTRA_RECORD_DATE).orEmpty()
@@ -189,7 +187,7 @@ class RecordEditorActivity : AppCompatActivity() {
         finish()
     }
 
-    // 기존 기록 삭제 버튼을 눌렀을 때 RecordActivity가 삭제할 Firebase id를 결과로 반환
+    // 기록 삭제 버튼을 눌렀을 때 RecordActivity가 삭제할 Firebase id를 결과로 반환
     private fun returnDeleteResult() {
         val recordId = intent.getStringExtra(EXTRA_RECORD_ID).orEmpty()
 
@@ -226,8 +224,7 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     /*
-     * 화면 회전처럼 시스템이 EditorActivity를 다시 만들 때 작성 중인 값을 잃지 않도록 Bundle에 저장합니다.
-     * 장기 저장 데이터가 아니라 현재 입력 화면의 임시 UI 상태이므로 SharedPreferences나 Firebase를 사용하지 않습니다.
+     * 화면 회전처럼 시스템이 EditorActivity를 다시 만들 때 작성 중인 값을 잃지 않도록 Bundle에 저장
      */
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString(STATE_DETAIL_INPUT, binding.detailInput.text.toString())
