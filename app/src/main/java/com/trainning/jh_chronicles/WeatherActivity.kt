@@ -17,15 +17,29 @@ class WeatherActivity : AppCompatActivity() {
         private const val WEATHER_REFRESH_INTERVAL_MILLIS = 10 * 60 * 1000L
 
         // 시스템이 Activity를 다시 만들 때 마지막 날씨 화면과 조회 시각을 복원하기 위한 Bundle key
+        // 마지막 날씨 조회 성공 시각을 저장할 key를 선언했음
         private const val STATE_LAST_FETCHED_AT = "state_weather_last_fetched_at"
+
+        // 화면에 표시한 날씨 이미지의 drawable id를 저장할 key를 선언했음
         private const val STATE_WEATHER_IMAGE = "state_weather_image"
+
+        // 화면에 표시한 온도를 저장할 key를 선언했음
         private const val STATE_TEMPERATURE = "state_weather_temperature"
+
+        // 화면에 표시한 날씨 설명을 저장할 key를 선언했음
         private const val STATE_DESCRIPTION = "state_weather_description"
+
+        // 화면에 표시한 미세먼지 정보를 저장할 key를 선언했음
         private const val STATE_DUST = "state_weather_dust"
+
+        // 화면에 표시한 산책 추천 문구를 저장할 key를 선언했음
         private const val STATE_WEATHER_COMMENT = "state_weather_comment"
+
+        // 화면에 표시한 미세먼지 추천 문구를 저장할 key를 선언했음
         private const val STATE_DUST_COMMENT = "state_weather_dust_comment"
     }
 
+    // activity_weather.xml의 View들을 Kotlin 코드에서 사용하기 위해 바인딩 변수를 선언했음
     private lateinit var binding: ActivityWeatherBinding
 
     // 마지막 날씨 조회가 성공한 시간을 저장하여 onResume에서 10분 경과 여부를 확인
@@ -37,49 +51,60 @@ class WeatherActivity : AppCompatActivity() {
     // onStop에서 진행 중인 날씨 네트워크 작업을 취소하려면 Job 객체를 기억하고 있어야 함
     private var weatherFetchJob: Job? = null
 
-    // Fragment의 onCreateView 대신 Activity는 onCreate에서 화면을 생성한다.
+    // Activity가 처음 생성될 때 화면과 클릭 이벤트를 준비했음
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         logLifecycle("onCreate - 날씨 화면과 이동 버튼 초기화")
 
         // 화면 인테리어 시작
+        // activity_weather.xml을 객체로 만들고 Activity 화면으로 지정했음
         binding = ActivityWeatherBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         // 화면 이동 버튼 세팅
-        // findNavController 대신 Activity를 실행하는 명시적 Intent만 사용한다.
+        // 기록 버튼을 누르면 명시적 Intent로 RecordActivity를 실행했음
         binding.recordBtn.setOnClickListener {
             startActivity(Intent(this, RecordActivity::class.java))
         }
+
+        // 병원 버튼을 누르면 명시적 Intent로 HospitalActivity를 실행했음
         binding.mapBtn.setOnClickListener {
             startActivity(Intent(this, HospitalActivity::class.java))
         }
+
+        // 일기 버튼을 누르면 명시적 Intent로 DiaryActivity를 실행했음
         binding.diaryBtn.setOnClickListener {
             startActivity(Intent(this, DiaryActivity::class.java))
         }
+
+        // 접종 버튼을 누르면 명시적 Intent로 VaccinationActivity를 실행했음
         binding.dDayBtn.setOnClickListener {
             startActivity(Intent(this, VaccinationActivity::class.java))
         }
 
         /*
-         * 화면 회전이나 시스템 재생성으로 전달된 Bundle이 있으면 마지막 날씨와 조회 시각을 먼저 복원합니다.
-         * 실제 재조회 여부는 화면이 전면에 나타나는 onResume에서 10분 경과 여부를 확인한 뒤 결정합니다.
+         * 화면 회전이나 시스템 재생성으로 전달된 Bundle이 있으면 마지막 날씨와 조회 시각을 먼저 복원
+         * 실제 재조회 여부는 화면이 전면에 나타나는 onResume에서 10분 경과 여부를 확인한 뒤 결정
          */
         restoreWeatherState(savedInstanceState)
     }
 
     // onSaveInstanceState에서 저장한 마지막 날씨 화면과 조회 성공 시각을 다시 화면에 넣는 함수
     private fun restoreWeatherState(savedInstanceState: Bundle?) {
+        // 저장된 Bundle이 없는 최초 실행이면 복원할 값이 없어 함수를 끝냈음
         if (savedInstanceState == null) return
 
+        // 이전 Activity에서 저장한 마지막 조회 성공 시각을 복원했음
         lastWeatherFetchedAt = savedInstanceState.getLong(STATE_LAST_FETCHED_AT, 0L)
 
+        // 저장된 drawable id가 있을 때만 날씨 이미지를 복원했음
         val weatherImageRes = savedInstanceState.getInt(STATE_WEATHER_IMAGE, 0)
         if (weatherImageRes != 0) {
             currentWeatherImageResource = weatherImageRes
             binding.ivWeather.setImageResource(weatherImageRes)
         }
 
+        // 저장된 온도와 날씨 문구가 있으면 각 TextView에 다시 표시했음
         binding.tvTemperature.text =
             savedInstanceState.getString(STATE_TEMPERATURE, binding.tvTemperature.text.toString())
         binding.tvWeatherDescription.text =
@@ -98,6 +123,7 @@ class WeatherActivity : AppCompatActivity() {
         // 이미 같은 네트워크 작업이 진행 중이라면 onResume이 다시 호출돼도 중복 요청하지 않음
         if (weatherFetchJob?.isActive == true) return
 
+        // OpenWeather 서버에 요청할 API key를 준비했음
         val apiKey = "653d30f1558429a1d9d417c7361a512c"
         // 성남의 위도, 경도
         val seongnamLat = 37.4201
@@ -117,7 +143,7 @@ class WeatherActivity : AppCompatActivity() {
                     apiKey = apiKey
                 )
 
-                // 2. 미세먼지 데이터 가져오기
+                // 성남의 위도와 경도를 전달해 미세먼지 데이터를 요청했음
                 val pollutionData = RetrofitClient.weatherService.getAirPollution(
                     lat = seongnamLat,
                     lon = seongnamLon,
@@ -135,6 +161,7 @@ class WeatherActivity : AppCompatActivity() {
                 val pm10 = currentPollution.components.pm10 //미세몬지 농도
                 val pm25 = currentPollution.components.pm25 // 초미세먼지 농도
 
+                // 서버가 돌려준 날씨 상태에 맞는 이미지를 선택했음
                 val weatherImageRes = when (currentWeather.mainStatus.lowercase()) {
                     "clear" -> R.drawable.weather_clear_jooho
                     "clouds" -> R.drawable.weather_cloudy
@@ -143,17 +170,21 @@ class WeatherActivity : AppCompatActivity() {
                     else -> R.drawable.weather_cloudy
                 }
 
+                // 강수 여부와 온도에 따라 산책 추천 문구를 선택했음
                 val walkRecommendation = when {
                     status.contains("비") || status.contains("눈") -> "🌧️ 비/눈이 와요. 실내 놀이를 추천해요!"
                     temp < 5.0 -> "🥶 날씨가 추워요. 따뜻하게 입히고 짧게 산책하세요."
                     temp > 30.0 -> "🥵 너무 더워요. 야외 활동을 자제해 주세요."
                     else -> "😊 산책하기 딱 좋은 날씨예요!"
                 }
+
+                // 대기질 지수에 따라 외출 추천 문구를 선택했음
                 val dustRecommendation = when {
                     aqi >= 4 -> "😷 미세먼지가 너무 나빠요! 외출을 삼가주세요."
                     else -> "😊 공기가 맑아요!" // when 에서 else는 반드시 필요함
                 }
 
+                // 조회한 날씨와 미세먼지 결과를 화면의 각 View에 표시했음
                 binding.ivWeather.setImageResource(weatherImageRes)
                 currentWeatherImageResource = weatherImageRes
                 binding.tvTemperature.text = "${temp.toInt()}°C"
@@ -167,34 +198,41 @@ class WeatherActivity : AppCompatActivity() {
 
             } catch (e: CancellationException) {
                 // onStop에서 화면이 가려져 Job을 취소한 것은 정상적인 생명주기 정리이므로 오류를 띄우지 않음
+                // 코루틴 취소 신호가 일반 오류로 처리되지 않도록 다시 전달했음
                 throw e
             } catch (e: Exception) {
+                // 서버 요청에 실패하면 사용자에게 오류 내용을 Toast로 보여줬음
                 Toast.makeText(this@WeatherActivity, "네트워크 오류: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
+    // Activity가 사용자에게 보이기 시작한 시점을 로그로 확인했음
     override fun onStart() {
         super.onStart()
         logLifecycle("onStart")
     }
 
+    // Activity가 전면에 나타날 때 날씨를 다시 받아야 하는지 확인했음
     override fun onResume() {
         super.onResume()
         logLifecycle("onResume - 마지막 조회 후 10분 경과 여부 확인")
 
         // 처음 조회하거나 마지막 성공 조회 후 10분 이상 지났을 때만 서버에 다시 요청
+        // 현재 시각에서 마지막 조회 시각을 빼 경과 시간을 계산했음
         val elapsedTime = System.currentTimeMillis() - lastWeatherFetchedAt
         if (lastWeatherFetchedAt == 0L || elapsedTime >= WEATHER_REFRESH_INTERVAL_MILLIS) {
             fetchWeatherData()
         }
     }
 
+    // 다른 화면이 위에 나타나 Activity가 전면 상태를 잃은 시점을 로그로 확인했음
     override fun onPause() {
         logLifecycle("onPause")
         super.onPause()
     }
 
+    // Activity가 완전히 보이지 않을 때 진행 중인 네트워크 작업을 정리했음
     override fun onStop() {
         // 화면이 완전히 가려지면 불필요한 네트워크 작업을 중단하여 결과가 숨겨진 화면을 수정하지 않도록 함
         weatherFetchJob?.cancel()
@@ -203,18 +241,22 @@ class WeatherActivity : AppCompatActivity() {
         super.onStop()
     }
 
+    // 중단됐던 Activity가 다시 시작될 때 호출된 시점을 로그로 확인했음
     override fun onRestart() {
         super.onRestart()
         logLifecycle("onRestart")
     }
 
     /*
-     * 화면 회전처럼 시스템이 Activity를 파괴한 뒤 다시 만들 때 마지막 날씨 화면을 유지합니다.
-     * 조회 시각도 함께 저장해야 복원 직후 10분이 지나지 않았다면 불필요한 재요청을 막을 수 있습니다.
+     * 화면 회전처럼 시스템이 Activity를 파괴한 뒤 다시 만들 때 마지막 날씨 화면을 유지했음
+     * 조회 시각도 함께 저장하여 복원 직후 불필요한 재요청을 막았음
      */
     override fun onSaveInstanceState(outState: Bundle) {
+        // 마지막 조회 성공 시각과 날씨 이미지 id를 Bundle에 저장했음
         outState.putLong(STATE_LAST_FETCHED_AT, lastWeatherFetchedAt)
         outState.putInt(STATE_WEATHER_IMAGE, currentWeatherImageResource)
+
+        // 현재 화면에 표시된 날씨와 미세먼지 문구를 Bundle에 저장했음
         outState.putString(STATE_TEMPERATURE, binding.tvTemperature.text.toString())
         outState.putString(STATE_DESCRIPTION, binding.tvWeatherDescription.text.toString())
         outState.putString(STATE_DUST, binding.tvDust1.text.toString())
@@ -224,7 +266,7 @@ class WeatherActivity : AppCompatActivity() {
         super.onSaveInstanceState(outState)
     }
 
-    // 프래그먼트의 onDestroyView 대신 Activity에서는 onDestroy가 호출된다.
+    // 프래그먼트의 onDestroyView 대신 Activity에서는 onDestroy가 호출됐음
     override fun onDestroy() {
         // 보통 onStop에서 취소되지만 예외적인 종료에도 Job이 남지 않도록 한 번 더 정리
         weatherFetchJob?.cancel()
