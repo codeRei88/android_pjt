@@ -89,22 +89,22 @@ class WeatherActivity : AppCompatActivity() {
         restoreWeatherState(savedInstanceState)
     }
 
-    // onSaveInstanceState에서 저장한 마지막 날씨 화면과 조회 성공 시각을 다시 화면에 넣는 함수
+    // onSaveInstanceState에서 저장한 마지막 날씨 화면과 조회시각을 다시 화면에 표시하는 함수
     private fun restoreWeatherState(savedInstanceState: Bundle?) {
-        // 저장된 Bundle이 없는 최초 실행이면 복원할 값이 없어 함수를 끝냈음
+        // 저장된 Bundle이 없는 최초 실행이면 복원할 값이 없어 함수 리턴
         if (savedInstanceState == null) return
 
-        // 이전 Activity에서 저장한 마지막 조회 성공 시각을 복원했음
+        // 이전 Activity에서 저장한 마지막 날씨조회 시각을 복원
         lastWeatherFetchedAt = savedInstanceState.getLong(STATE_LAST_FETCHED_AT, 0L)
 
-        // 저장된 drawable id가 있을 때만 날씨 이미지를 복원했음
+        // 저장된 drawable id가 있을 때만 날씨 이미지를 복원
         val weatherImageRes = savedInstanceState.getInt(STATE_WEATHER_IMAGE, 0)
         if (weatherImageRes != 0) {
             currentWeatherImageResource = weatherImageRes
             binding.ivWeather.setImageResource(weatherImageRes)
         }
 
-        // 저장된 온도와 날씨 문구가 있으면 각 TextView에 다시 표시했음
+        // 저장된 온도와 날씨 문구가 있으면 각 TextView에 다시 표시
         binding.tvTemperature.text =
             savedInstanceState.getString(STATE_TEMPERATURE, binding.tvTemperature.text.toString())
         binding.tvWeatherDescription.text =
@@ -219,10 +219,10 @@ class WeatherActivity : AppCompatActivity() {
         logLifecycle("onResume - 마지막 조회 후 10분 경과 여부 확인")
 
         // 처음 조회하거나 마지막 성공 조회 후 10분 이상 지났을 때만 서버에 다시 요청
-        // 현재 시각에서 마지막 조회 시각을 빼 경과 시간을 계산했음
-        val elapsedTime = System.currentTimeMillis() - lastWeatherFetchedAt
-        if (lastWeatherFetchedAt == 0L || elapsedTime >= WEATHER_REFRESH_INTERVAL_MILLIS) {
-            fetchWeatherData()
+        // 현재 시각에서 마지막 조회 시각을 빼 경과 시간을 계산
+        val elapsedTime = System.currentTimeMillis() - lastWeatherFetchedAt // 경과시간
+        if (lastWeatherFetchedAt == 0L || elapsedTime >= WEATHER_REFRESH_INTERVAL_MILLIS) { //처음조회 거나 경과시간 10분이 자날시
+            fetchWeatherData() //날씨 호출
         }
     }
 
@@ -232,7 +232,7 @@ class WeatherActivity : AppCompatActivity() {
         super.onPause()
     }
 
-    // Activity가 완전히 보이지 않을 때 진행 중인 네트워크 작업을 정리했음
+    // Activity가 완전히 보이지 않을 때 진행 중인 네트워크 작업 정리
     override fun onStop() {
         // 화면이 완전히 가려지면 불필요한 네트워크 작업을 중단하여 결과가 숨겨진 화면을 수정하지 않도록 함
         weatherFetchJob?.cancel()
@@ -241,22 +241,22 @@ class WeatherActivity : AppCompatActivity() {
         super.onStop()
     }
 
-    // 중단됐던 Activity가 다시 시작될 때 호출된 시점을 로그로 확인했음
+    // 중단됐던 Activity가 다시 시작될 때 호출된 시점을 로그로 확인
     override fun onRestart() {
         super.onRestart()
         logLifecycle("onRestart")
     }
 
     /*
-     * 화면 회전처럼 시스템이 Activity를 파괴한 뒤 다시 만들 때 마지막 날씨 화면을 유지했음
-     * 조회 시각도 함께 저장하여 복원 직후 불필요한 재요청을 막았음
+     * 화면 회전처럼 시스템이 Activity를 파괴한 뒤 다시 만들 때 마지막 날씨 화면을 유지하는 메서드
+     * 조회 시각도 함께 저장하여 복원 직후 불필요한 재요청을 막음
      */
     override fun onSaveInstanceState(outState: Bundle) {
-        // 마지막 조회 성공 시각과 날씨 이미지 id를 Bundle에 저장했음
+        // 마지막 날씨조회 시각과 날씨 이미지 id를 Bundle에 저장
         outState.putLong(STATE_LAST_FETCHED_AT, lastWeatherFetchedAt)
         outState.putInt(STATE_WEATHER_IMAGE, currentWeatherImageResource)
 
-        // 현재 화면에 표시된 날씨와 미세먼지 문구를 Bundle에 저장했음
+        // 현재 화면에 표시된 날씨와 미세먼지 문구를 Bundle에 저장
         outState.putString(STATE_TEMPERATURE, binding.tvTemperature.text.toString())
         outState.putString(STATE_DESCRIPTION, binding.tvWeatherDescription.text.toString())
         outState.putString(STATE_DUST, binding.tvDust1.text.toString())
@@ -266,7 +266,7 @@ class WeatherActivity : AppCompatActivity() {
         super.onSaveInstanceState(outState)
     }
 
-    // 프래그먼트의 onDestroyView 대신 Activity에서는 onDestroy가 호출됐음
+
     override fun onDestroy() {
         // 보통 onStop에서 취소되지만 예외적인 종료에도 Job이 남지 않도록 한 번 더 정리
         weatherFetchJob?.cancel()

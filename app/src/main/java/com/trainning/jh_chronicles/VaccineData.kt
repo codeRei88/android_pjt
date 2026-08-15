@@ -58,11 +58,11 @@ data class VaccineData(
     companion object {
 
         /*
-         * 대한민국 질병관리청 표준 예방접종 일정입니다.
+         * 대한민국 질병관리청 표준 예방접종 일정
          *
          * 접종 가능 기간이 범위인 경우:
          * - 범위 시작일은 목록 정렬에 사용합니다.
-         * - 범위 마지막 날은 화면의 D-day에 사용합니다.
+         * - 범위 마지막 날은 화면의 D-day에 사용
          */
         fun standardSchedule(): List<VaccineData> = listOf(
             VaccineData(

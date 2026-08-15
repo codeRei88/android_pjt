@@ -21,11 +21,6 @@ import java.util.Calendar
 
 class VaccinationActivity : AppCompatActivity() {
 
-    companion object {
-        // 시스템이 Activity를 다시 만들 때 사용자가 선택한 생년월일을 복원하기 위한 Bundle key
-        private const val STATE_SELECTED_BIRTH_DATE = "state_vaccination_selected_birth_date"
-    }
-
     private lateinit var binding: ActivityVaccinationBinding
 
     private lateinit var vaccineAdapter: AdapterVaccine
@@ -55,34 +50,22 @@ class VaccinationActivity : AppCompatActivity() {
         binding = ActivityVaccinationBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // 화면 회전 전에 선택한 생년월일이 있다면 Firebase 결과가 도착하기 전에도 먼저 복원
-        birthDate = savedInstanceState
-            ?.getString(STATE_SELECTED_BIRTH_DATE)
-            ?.let { savedDate ->
-                try {
-                    LocalDate.parse(savedDate)
-                } catch (_: DateTimeParseException) {
-                    null
-                }
-            }
-
         setupNavigationButtons() //각 액티비티 이동 지정 메서드
         setupRecyclerView() //리사이클러뷰, 레이아웃메니저 연결, 앱내 저장된 백신데이터 화면에 표시
         setupBirthDateButton() //생년월일 입력버튼을 눌렀을때 생일을 파이어베이스에 저장 및 백신데이터 저장
-
-        // Bundle에서 생년월일을 복원했다면 현재 날짜 기준 D-Day도 함께 다시 계산
+        // Firebase 데이터가 도착하기 전 기본 접종 일정의 D-Day계산 아이 생후 일수를 기준으로
         recalculateDays()
+        //계산된 DDay로 리사이클러뷰 정렬
         refreshVaccineList()
 
+        //파이어베이스 설정
         val currentUser = Firebase.auth.currentUser
-
         if (currentUser == null) {
             binding.babyAgeText.text =
                 "로그인 정보를 찾지 못해 접종 기록을 불러올 수 없습니다."
             binding.babyBirthDay.isEnabled = false
             return
         }
-
         userVaccineRef = Firebase.database
             .getReference("vaccine_entries")
             .child(currentUser.uid)
@@ -180,8 +163,8 @@ class VaccinationActivity : AppCompatActivity() {
     // onStart에서 연결한 Firebase 리스너를 화면이 완전히 가려지는 onStop에서 제거
     private fun stopObservingVaccineData() {
         vaccineValueListener?.let { listener ->
-            if (::userVaccineRef.isInitialized) {
-                userVaccineRef.removeEventListener(listener)
+            if (::userVaccineRef.isInitialized) { //파이어베이스 경로가 초기화된적이 있다면
+                userVaccineRef.removeEventListener(listener) // 그경로에 붙어있는 리스너를 해제해라
             }
         }
         vaccineValueListener = null
@@ -205,7 +188,7 @@ class VaccinationActivity : AppCompatActivity() {
 
     /*
      * 기존 사용자의 Firebase에 없는 새 접종 항목만 추가합니다.
-     * 이미 저장된 체크 상태는 덮어쓰지 않습니다.
+     * 이미 저장된 체크 상태는 덮어쓰지 않음
      */
     private fun saveMissingScheduleItems(snapshot: DataSnapshot) {
         val updates = mutableMapOf<String, Any>() // 파이어베이스에 없는 데이터를 key, value형태로 담아두기 위한 그릇
@@ -438,7 +421,7 @@ class VaccinationActivity : AppCompatActivity() {
 
         /*
          * 다른 Activity나 캘린더 앱에 머무는 동안 날짜가 바뀔 수 있으므로
-         * 화면이 다시 전면에 나타날 때 현재 날짜 기준 생후 일수와 모든 D-Day를 다시 계산합니다.
+         * 화면이 다시 전면에 나타날 때 현재 날짜 기준 생후 일수와 모든 D-Day를 다시 계산
          */
         recalculateDays()
         refreshVaccineList()
@@ -461,19 +444,9 @@ class VaccinationActivity : AppCompatActivity() {
         logLifecycle("onRestart")
     }
 
-    /*
-     * 화면 회전처럼 시스템이 Activity를 다시 만들 때 선택한 생년월일을 유지하기 위한 Bundle 저장입니다.
-     * 실제 영구 저장은 Firebase가 담당하고, Bundle은 Firebase 결과가 다시 도착하기 전의 UI 상태를 복원합니다.
-     */
-    override fun onSaveInstanceState(outState: Bundle) {
-        outState.putString(STATE_SELECTED_BIRTH_DATE, birthDate?.toString())
-        logLifecycle("onSaveInstanceState - 선택한 생년월일 저장")
-        super.onSaveInstanceState(outState)
-    }
-
     // Fragment의 onDestroyView 대신 Activity에서는 onDestroy에서 리스너를 제거한다.
     override fun onDestroy() {
-        // 보통 onStop에서 제거되지만 예외적인 종료에도 리스너가 남지 않도록 한 번 더 정리
+        // 종료에도 리스너가 남지 않도록 한 번 더 정리
         stopObservingVaccineData()
         binding.vaccineRc.adapter = null
         logLifecycle("onDestroy - Firebase 리스너와 RecyclerView 참조 정리")

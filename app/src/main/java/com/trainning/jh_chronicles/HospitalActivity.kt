@@ -40,7 +40,7 @@ class HospitalActivity : AppCompatActivity() {
     // 3. 진열대에 가저온 데이터를 꽂아 보여주는 객체 현재는 화면이 그려지기 전이므로 context가 없는상태라 메모리에 빈그릇만 선언
     private lateinit var hospitalAdapter: AdapterHospital
 
-    // onPause/onStop에서 아직 진행 중인 현재 위치 요청을 취소하기 위한 토큰 보관함
+    // onPause/onStop에서 아직 진행 중인 현재 위치 요청(GPS요청)을 취소하기 위한 토큰 보관함
     private var locationCancellationSource: CancellationTokenSource? = null
 
     // onPause/onStop에서 카카오 병원 검색 네트워크 작업을 취소하기 위해 Job 객체를 보관
@@ -53,7 +53,7 @@ class HospitalActivity : AppCompatActivity() {
     // 이미 병원 목록을 정상적으로 받았다면 다른 Activity에서 돌아올 때 불필요하게 다시 검색하지 않기 위한 값
     private var hasLoadedHospitals = false
 
-    // onPause 이후 도착한 위치·네트워크 결과가 가려진 화면을 수정하지 않게 하는 생명주기 상태값
+    // 지금 병원화면이 활성 상태인지 아닌지
     private var canHandleLocationResult = false
 
     // 4. 권한안내 데스크 셋팅, 사용자가 권한요청에대한 답을 하면 그때 행동수칙 적어놈
@@ -73,14 +73,13 @@ class HospitalActivity : AppCompatActivity() {
                 showError("위치를 사용할 수 없어요. 핸드폰 GPS를 켜주세요. 📡")
             }
         } else {
-            // 손님이 "싫어!" 하고 거절했다면?
+            // 손님이 거절했다면?
             showError("위치 권한이 없으면 주변 소아과를 찾을 수 없어요 😢")
             Toast.makeText(this, "위치 권한을 허용해주세요.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // 🏪 매장 문을 처음 여는 곳 (화면이 만들어질 때)
-    // Fragment의 onCreateView 대신 Activity는 onCreate에서 화면을 만든다.
+    // 보여지기전 화면의 구성을 준비하고 셋팅을 끝냄(onCreate는 인테리어 업자 사용자가 집에 들어오기전 사용자가 보고 상호작용할수있는 모든걸 셋팅 후 퇴장)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         logLifecycle("onCreate - 위치 권한 Launcher, RecyclerView와 GPS 객체 초기화")
@@ -114,11 +113,10 @@ class HospitalActivity : AppCompatActivity() {
         }
     }
 
-    // 🛒 진열대(리사이클러뷰)와 직원(어댑터) 준비하기
+    // 진열대(리사이클러뷰)와 직원(어댑터) 준비하기
     private fun setupRecyclerView() {
         val hospitalList = mutableListOf<Place>() // 빈 바구니 준비
-        hospitalAdapter = AdapterHospital(
-            hospitalList = hospitalList,
+        hospitalAdapter = AdapterHospital(hospitalList = hospitalList,
 
             // 전화 버튼을 누르면 전화번호를 ACTION_DIAL 암시적 Intent로 전달
             onDialClick = { hospital ->
@@ -141,12 +139,10 @@ class HospitalActivity : AppCompatActivity() {
             Toast.makeText(this, "등록된 전화번호가 없습니다.", Toast.LENGTH_SHORT).show()
             return
         }
-
         val dialIntent = Intent(
-            Intent.ACTION_DIAL,
-            Uri.parse("tel:$phoneNumber")
+            Intent.ACTION_DIAL, //전화 화면을 열어라
+            Uri.parse("tel:$phoneNumber") // 해당 번호를 넣어라
         )
-
         try {
             startActivity(dialIntent)
         } catch (_: ActivityNotFoundException) {
@@ -173,24 +169,21 @@ class HospitalActivity : AppCompatActivity() {
         }
     }
 
-    // 👮 보안 요원의 신분증(권한) 검사 시간!
+    // 사용자 위치를 딸수있는 권한이 있는지 체크
     private fun checkLocationPermission() {
-        if (hasLocationPermission()) {
+        if (hasLocationPermission()) { //권한이 있을경우
             // 권한이 있어도 설정에서 GPS가 꺼져 있으면 위치 요청을 시작하지 않음
             if (!isLocationAvailable()) {
                 hasLoadedHospitals = false
                 showError("위치를 사용할 수 없어요. 핸드폰 GPS를 켜주세요. 📡")
                 return
             }
-
             // 아직 목록을 받지 못했고 현재 요청 중도 아닐 때만 GPS 요원을 출동시킴
             if (!hasLoadedHospitals && !isLocationRequestInProgress) {
                 fetchLocationAndHospitals()
             }
-        } else {
-            // 처음 온 손님이면 안내문구를 띄우고 "허락해 주세요~" 팝업을 띄워요.
+        } else { //권한이 없을 경우
             showError("주변 소아과를 찾으려면 위치 권한이 필요해요.")
-
             // onResume이 여러 번 호출돼도 권한 팝업이 중복으로 뜨지 않도록 진행 중일 때는 다시 요청하지 않음
             if (!isPermissionRequestRunning) {
                 isPermissionRequestRunning = true
@@ -213,14 +206,14 @@ class HospitalActivity : AppCompatActivity() {
         return hasFineLocation || hasCoarseLocation
     }
 
-    // 위치 설정에서 GPS 또는 네트워크 위치 제공 기능을 사용할 수 있는지 확인
+    // 폰의 GPS가 켜저있는지 확인
     private fun isLocationAvailable(): Boolean {
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
             locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
     }
 
-    // 📍 GPS 요원 출동! 내 위치 찾아내기
+    // GPS 작동 내 위치 찾아내기
     @SuppressLint("MissingPermission")
     private fun fetchLocationAndHospitals() {
         // 같은 위치 요청이 이미 실행 중이면 중복 요청하지 않음
@@ -229,7 +222,7 @@ class HospitalActivity : AppCompatActivity() {
         isLocationRequestInProgress = true
         showLoading("GPS 요원이 현재 위치를 찾고 있어요! 🕵️‍♂️")
 
-        // onPause/onStop에서 이 요청만 정확히 취소할 수 있도록 새 취소 토큰을 생성하여 보관
+        // onPause,onStop에서 이 요청만 정확히 취소할 수 있도록 새 취소 토큰을 생성하여 보관
         val cancellationSource = CancellationTokenSource()
         locationCancellationSource = cancellationSource
 
@@ -249,7 +242,7 @@ class HospitalActivity : AppCompatActivity() {
                     return@addOnSuccessListener
                 }
 
-                // 성공! 내 위도(가로줄)와 경도(세로줄)를 알아냈어요.
+                // 위치찾기 성공, 위도와 경도를 따로 담아둠
                 val myLatitude = location.latitude
                 val myLongitude = location.longitude
 
@@ -263,7 +256,7 @@ class HospitalActivity : AppCompatActivity() {
                 /*
                  * Android 에뮬레이터의 기본 위치는 미국
                  * 한국 밖 좌표를 카카오 로컬 검색에 보내면 엉뚱한 검색 결과가 나올 수 있으므로
-                 * 먼저 한국 안의 좌표인지 확인합니다.
+                 * 먼저 한국 안의 좌표인지 확인
                  */
                 if (!isLocationInKorea(myLatitude, myLongitude)) {
                     showError(
@@ -275,8 +268,8 @@ class HospitalActivity : AppCompatActivity() {
                 }
 
                 /*
-                 * 대략적인 위치만 허용하면 오차가 수 km까지 커질 수 있어요.
-                 * 반경 3km 검색에서는 정확한 위치 권한이 중요합니다.
+                 * 대략적인 위치만 허용하면 오차가 수 km까지 커질 수 있음
+                 * 반경 3km 검색에서는 정확한 위치 권한이 필요
                  */
                 if (location.accuracy > 3000f) {
                     showError(
@@ -296,7 +289,7 @@ class HospitalActivity : AppCompatActivity() {
                 }
                 showError("위치 찾기 실패! 권한과 GPS를 확인해 주세요.")
             }
-            .addOnCompleteListener {
+            .addOnCompleteListener { //위치 찾기가 끝나면(성공,실패,취소 상관없이) 실행될 코드
                 isLocationRequestInProgress = false
                 if (locationCancellationSource === cancellationSource) {
                     locationCancellationSource = null
@@ -304,7 +297,7 @@ class HospitalActivity : AppCompatActivity() {
             }
     }
 
-    // 🚚 통신 본부(Retrofit)를 통해 카카오 서버에 데이터 택배 주문하기!
+    // 통신 본부(Retrofit)를 통해 카카오 서버에 데이터 택배 주문하기!
     private fun loadHospitals(latitude: Double, longitude: Double) {
 
         // 새로운 검색을 시작하기 전에 이전 검색 Job이 남아 있다면 취소
@@ -318,7 +311,7 @@ class HospitalActivity : AppCompatActivity() {
                 // 카카오 본사 문을 여는 마법의 열쇠(API KEY)
                 val kakaoKey = "KakaoAK 1fe8888145997cf462b7ba8feed50227"
 
-                // Retrofit 통신 본부 안의 카카오 부서(kakaoService)에 전화를 걸어 "소아청소년과"를 주문해요.
+                // Retrofit 통신 본부 안의 카카오 부서(kakaoService)에 전화를 걸어 소아청소년과를 주문
                 val hospitalData = RetrofitClient.kakaoService.searchPlaces(
                     apiKey = kakaoKey,
                     query = "소아청소년과",
@@ -328,13 +321,13 @@ class HospitalActivity : AppCompatActivity() {
                     sort = "distance"
                 )
 
-                // Activity가 종료 중이면 택배 버리고 퇴근!
+                // Activity가 종료 중이면 택배 버리고 퇴근
                 if (!canHandleLocationResult || isFinishing || isDestroyed) return@launch
 
-                // 도착한 택배 상자에서 알맹이(병원 리스트)만 쏙 꺼내요.
+                // 도착한 택배 상자에서 병원 리스트만 꺼냄
                 /*
-                 * 서버에 3km 반경을 요청했지만 화면에 넣기 전에도 한 번 더 확인합니다.
-                 * 이렇게 하면 거리 정보가 없거나 3km를 넘는 장소는 목록에 들어오지 않습니다.
+                 * 서버에 3km 반경을 요청했지만 화면에 넣기 전에도 한 번 더 확인
+                 * 이렇게 하면 거리 정보가 없거나 3km를 넘는 장소는 목록에 들어오지 않음
                  */
                 val placeList = hospitalData.documents.filter { hospital ->
                     val distanceInMeters = hospital.distance.toIntOrNull()
@@ -379,17 +372,17 @@ class HospitalActivity : AppCompatActivity() {
 
     // onPause와 onStop에서 공통으로 호출하여 위치 요청과 병원 검색 작업을 중단
     private fun cancelLocationAndSearchWork() {
-        locationCancellationSource?.cancel()
-        locationCancellationSource = null
+        locationCancellationSource?.cancel() //GPS 찾으런 간 요원에게 취소 무전치기
+        locationCancellationSource = null //한번 취소무전 친 무전기 버리기 1회용
         isLocationRequestInProgress = false
 
-        hospitalSearchJob?.cancel()
-        hospitalSearchJob = null
+        hospitalSearchJob?.cancel() //병원 목록가저오기 취소
+        hospitalSearchJob = null //코루틴 작업 메니저객체 버리기
     }
 
     /*
-     * 카카오 로컬 검색은 국내 장소 검색용이므로 좌표가 한국 영역인지 확인합니다.
-     * 아래 범위는 대한민국을 넉넉하게 감싸는 위도·경도 범위입니다.
+     * 카카오 로컬 검색은 국내 장소 검색용이므로 좌표가 한국 영역인지 확인
+     * 아래 범위는 대한민국을 감싸는 위도·경도 범위
      */
     private fun isLocationInKorea(latitude: Double, longitude: Double): Boolean {
         return latitude in 33.0..39.5 && longitude in 124.0..132.0
@@ -422,12 +415,12 @@ class HospitalActivity : AppCompatActivity() {
         binding.statusText.visibility = View.VISIBLE // 에러 났다고 글자로 알려주기
         binding.statusText.text = message
     }
-
+    // 사용자가 집에 들어와 집의 전경이 보이는 시점
     override fun onStart() {
         super.onStart()
         logLifecycle("onStart - 위치 사용 가능 여부 확인")
 
-        // Activity가 보이기 시작할 때 GPS가 꺼져 있으면 위치 요청 전에 먼저 안내
+        // Activity가 보이기 시작할 때 GPS장치가 꺼져 있으면 위치 요청 전에 사용자에게 먼저 안내
         if (!isLocationAvailable()) {
             hasLoadedHospitals = false
             showError("위치를 사용할 수 없어요. 핸드폰 GPS를 켜주세요. 📡")
@@ -436,7 +429,7 @@ class HospitalActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        canHandleLocationResult = true
+        canHandleLocationResult = true // 사용자와 상호작용 가능
         logLifecycle("onResume - 위치 권한과 GPS 상태 다시 확인")
 
         // 권한 또는 위치 설정 화면에서 돌아온 경우 변경된 상태를 다시 검사하고 필요하면 병원 검색 시작
@@ -462,15 +455,8 @@ class HospitalActivity : AppCompatActivity() {
         logLifecycle("onRestart")
     }
 
-    // 🧹 Fragment의 onDestroyView 대신 Activity에서는 onDestroy가 호출돼요.
     override fun onDestroy() {
         cancelLocationAndSearchWork()
-
-        // RecyclerView가 더 이상 Activity와 Adapter를 서로 참조하지 않도록 연결 해제
-        if (::binding.isInitialized) {
-            binding.hospitalRc.adapter = null
-        }
-
         logLifecycle("onDestroy - 위치 작업과 RecyclerView 참조 정리")
         super.onDestroy()
     }
