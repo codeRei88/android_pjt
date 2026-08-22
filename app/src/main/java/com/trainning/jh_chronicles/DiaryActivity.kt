@@ -21,9 +21,6 @@ class DiaryActivity : AppCompatActivity() {
     companion object {
         // 시스템에 의해 Activity가 파괴되고 나중에 복원될 때 스크롤위치를 저장하기 위한 Bundle key
         private const val STATE_SCROLL_POSITION = "state_diary_scroll_position"
-
-        // (시스템에 의해 Activity가 파괴되고 나중에 복원될 때) 사용자가 수정하려고 선택한 일기의 id를 저장하기 위한 Bundle key
-        private const val STATE_SELECTED_DIARY_ID = "state_selected_diary_id"
     }
 
     private lateinit var binding: ActivityDiaryBinding
@@ -43,32 +40,47 @@ class DiaryActivity : AppCompatActivity() {
     // 화면 회전 전에 보고 있던 RecyclerView 위치를 Firebase 데이터가 도착한 뒤 복원하기 위한 변수(번들의 벨류)
     private var savedScrollPosition = 0
 
-    // 현재 사용자가 선택한 일기 id를 화면 회전 전후로 기억하기 위한 변수(번들의 벨류)
-    private var selectedDiaryId: String? = null
-
-
       //DiaryEditorActivity를 실행한 뒤 결과를 돌려받기 위한 Activity Result 계약
       //계약을 위해 ActivityResultLauncher객체를 담을 변수그릇 선언
     private val diaryEditorLauncher = registerForActivityResult( //Contract, Callback 두 인수를 받아 ActivityResultLauncher를 반환하는 함수
         ActivityResultContracts.StartActivityForResult() //Intent를 입력받아 Activity를 실행하고, 결과를 ActivityResult 형태로 반환하는 Contract
     ) { activityResult -> // 실행된 activity에서 결과값을 받아 실행하는 Callback
 
+        val resultCodeName = when (activityResult.resultCode) {
+            RESULT_OK -> "RESULT_OK"
+            RESULT_CANCELED -> "RESULT_CANCELED"
+            else -> activityResult.resultCode.toString()
+        }
+        logLifecycle(
+            "DiaryEditorActivity 결과 수신 - resultCode=$resultCodeName"
+        )
+
         // 편집 화면에서 취소하거나 시스템 뒤로가기를 눌렀다면 RESULT_OK가 아니므로 아무것도 저장하지 않음
         if (activityResult.resultCode != RESULT_OK) {
+            logLifecycle("취소 또는 뒤로가기 결과이므로 Firebase 변경 없음")
             return@registerForActivityResult
         }
 
         // DiaryEditorActivity가 setResult()로 돌려준 결과Intent를 그릇에 담음
-        val resultIntent = activityResult.data ?: return@registerForActivityResult
-
-        // 같은 편집 Activity가 저장과 삭제 결과를 모두 보내므로 action 문자열로 할 일을 구분함
-         when (resultIntent.getStringExtra(DiaryEditorActivity.EXTRA_RESULT_ACTION)) {
-            DiaryEditorActivity.RESULT_ACTION_SAVE -> saveDiaryResult(resultIntent)
-            DiaryEditorActivity.RESULT_ACTION_DELETE -> deleteDiaryResult(resultIntent)
+        val resultIntent = activityResult.data
+        if (resultIntent == null) {
+            logLifecycle("RESULT_OK이지만 결과 Intent가 없어 처리 중단")
+            return@registerForActivityResult
         }
 
-        // 편집 화면의 결과 처리가 끝났으므로 현재 선택된 일기 id를 비움
-        selectedDiaryId = null
+        // 같은 편집 Activity가 저장과 삭제 결과를 모두 보내므로 action 문자열로 할 일을 구분함
+        when (resultIntent.getStringExtra(DiaryEditorActivity.EXTRA_RESULT_ACTION)) {
+            DiaryEditorActivity.RESULT_ACTION_SAVE -> {
+                logLifecycle("SAVE 결과 확인 - 일기 저장 함수 호출")
+                saveDiaryResult(resultIntent)
+            }
+            DiaryEditorActivity.RESULT_ACTION_DELETE -> {
+                logLifecycle("DELETE 결과 확인 - 일기 삭제 함수 호출")
+                deleteDiaryResult(resultIntent)
+            }
+            else -> logLifecycle("알 수 없는 결과 action이라 처리하지 않음")
+        }
+
     }
 
     // Fragment의 onCreateView 대신 Activity는 onCreate에서 화면을 생성한다.
@@ -81,9 +93,6 @@ class DiaryActivity : AppCompatActivity() {
 
         // 화면 회전 전에 저장한 RecyclerView 위치가 있다면 가져옴. 처음 실행이면 0번 위치 사용
         savedScrollPosition = savedInstanceState?.getInt(STATE_SCROLL_POSITION) ?: 0
-
-        // 화면 회전 전에 수정하려고 선택했던 일기 id가 있다면 다시 가져옴
-        selectedDiaryId = savedInstanceState?.getString(STATE_SELECTED_DIARY_ID)
 
         // 파이어베이스 데이터베이스 연결
         val database = Firebase.database // 파이어베이스 저장공간을 코드로 가져오기
@@ -99,10 +108,6 @@ class DiaryActivity : AppCompatActivity() {
         diaryAdapter.itemClick = object : AdapterMain.ItemClick {
             override fun onClick(view: View, position: Int) {
                 val clickedDiary = dataList[position]
-
-                // 어떤 일기를 수정하고 있었는지 onSaveInstanceState에서 저장할 수 있도록 id를 보관
-                selectedDiaryId = clickedDiary.id
-
                 // 기존 Dialog 대신 수정할 일기 정보를 Intent Extra에 담아 DiaryEditorActivity 실행
                 openDiaryEditorForEdit(clickedDiary)
             }
@@ -110,7 +115,6 @@ class DiaryActivity : AppCompatActivity() {
 
         // 쓰기 버튼을 누르면 새 일기 작성 모드라는 정보만 Intent에 담아 DiaryEditorActivity 실행
         binding.writeImg.setOnClickListener {
-            selectedDiaryId = null
             openDiaryEditorForCreate()
         }
 
@@ -140,6 +144,7 @@ class DiaryActivity : AppCompatActivity() {
             putExtra(DiaryEditorActivity.EXTRA_EDITOR_MODE, DiaryEditorActivity.MODE_CREATE)
         }
         // startActivity()가 아니라 launcher.launch()로 실행해야 편집 Activity의 결과를 돌려받을 수 있음(사후처리)
+        logLifecycle("(INTENT 발신) 새 일기 작성 모드로 DiaryEditorActivity 실행")
         diaryEditorLauncher.launch(editorIntent)
     }
 
@@ -165,12 +170,13 @@ class DiaryActivity : AppCompatActivity() {
         }
 
         // 편집 Activity가 setResult()로 보내는 수정 또는 삭제 결과를 받기 위해 launcher로 실행
+        logLifecycle("(INTENT 발신) 기존 일기 수정 모드로 DiaryEditorActivity 실행")
         diaryEditorLauncher.launch(editorIntent)
     }
 
     /*
-     * DiaryEditorActivity가 RESULT_OK와 함께 돌려준 저장 결과를 Firebase에 반영합니다.
-     * id가 비어 있으면 새 일기이고, id가 있으면 기존 일기를 수정하는 것입니다.
+     * DiaryEditorActivity가 RESULT_OK와 함께 돌려준 저장 결과를 Firebase에 반영
+     * id가 비어 있으면 새 일기이고, id가 있으면 기존 일기를 수정
      */
     private fun saveDiaryResult(resultIntent: Intent) {
         // 편집 화면이 돌려준 일기 id를 가져옴. 새 일기는 아직 id가 없으므로 빈 문자열임
@@ -194,12 +200,16 @@ class DiaryActivity : AppCompatActivity() {
             content = resultIntent.getStringExtra(DiaryEditorActivity.EXTRA_DIARY_CONTENT).orEmpty()
         )
 
-        // 새 일기인지 판단한 결과는 Firebase 저장 성공 후 초안을 지울지 결정할 때 사용함
+        // 새 일기인지 판단한 결과는 Firebase 저장 후 초안을 지울지 결정할 때 사용함
         val isNewDiary = returnedDiaryId.isBlank()
 
         // 새 일기 또는 수정된 일기를 선택한 Firebase 경로에 저장
+        logLifecycle(
+            "(FIREBASE 요청) ActivityResult 데이터를 ${if (isNewDiary) "새 일기" else "기존 일기 수정"}으로 저장"
+        )
         targetRef.setValue(returnedDiary)
             .addOnSuccessListener {
+                logLifecycle("(FIREBASE 완료) 일기 저장 성공")
                 /*
                  * 새 일기가 Firebase에 정상 저장된 뒤에만 SharedPreferences 초안을 삭제
                  * 저장에 실패했는데 초안을 먼저 지우면 사용자가 작성한 내용을 잃을 수 있기 때문
@@ -211,6 +221,7 @@ class DiaryActivity : AppCompatActivity() {
                 Toast.makeText(this, "저장 완료", Toast.LENGTH_SHORT).show()
             }
             .addOnFailureListener { error ->
+                logLifecycle("(FIREBASE 실패) 일기 저장 실패")
                 // 저장 실패 시 초안은 지우지 않으므로 다시 작성 화면을 열면 기존 내용을 복구할 수 있음
                 Toast.makeText(this, "저장 실패: ${error.message}", Toast.LENGTH_SHORT).show()
             }
@@ -223,7 +234,16 @@ class DiaryActivity : AppCompatActivity() {
 
         // 새 일기에는 삭제할 Firebase id가 없으므로 id가 있을 때만 삭제 요청
         if (diaryId.isNotBlank()) {
+            logLifecycle("(FIREBASE 요청) ActivityResult가 지정한 기존 일기 삭제")
             myRef.child(diaryId).removeValue()
+                .addOnSuccessListener {
+                    logLifecycle("(FIREBASE 완료) 일기 삭제 성공")
+                }
+                .addOnFailureListener {
+                    logLifecycle("(FIREBASE 실패) 일기 삭제 실패")
+                }
+        } else {
+            logLifecycle("(FIREBASE 생략) 삭제할 일기 id가 없어 요청하지 않음")
         }
     }
 
@@ -238,8 +258,8 @@ class DiaryActivity : AppCompatActivity() {
     }
 
     /*
-     * Firebase 일기 리스너를 연결하는 함수입니다.
-     * onStart는 Activity가 사용자에게 보이기 시작할 때 호출되므로 이 시점부터 일기 변경을 관찰합니다.
+     * Firebase 일기 리스너를 연결하는 함수
+     * onStart는 Activity가 사용자에게 보이기 시작할 때 호출되므로 이 시점부터 일기 변경을 관찰
      */
     private fun attachDiaryListener() {
         // 이미 리스너가 연결된 상태에서 중복으로 등록되는 것을 방지
@@ -325,14 +345,10 @@ class DiaryActivity : AppCompatActivity() {
             (binding.diaryRc.layoutManager as? LinearLayoutManager)
                 ?.findFirstVisibleItemPosition()
                 ?: 0
-
         // 화면 회전 후 onCreate에서 다시 읽을 수 있도록 스크롤 위치 저장
         outState.putInt(STATE_SCROLL_POSITION, currentScrollPosition)
 
-        // 수정 중 선택했던 일기 id가 있다면 함께 저장
-        outState.putString(STATE_SELECTED_DIARY_ID, selectedDiaryId)
-
-        logLifecycle("onSaveInstanceState - 선택한 일기와 목록 위치 저장")
+        logLifecycle("onSaveInstanceState - 목록 위치 저장")
         super.onSaveInstanceState(outState)
     }
 

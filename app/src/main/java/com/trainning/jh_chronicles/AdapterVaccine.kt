@@ -20,15 +20,8 @@ class AdapterVaccine(
         val binding: OneRcVaccinationBinding
     ) : RecyclerView.ViewHolder(binding.root)
 
-    override fun onCreateViewHolder(
-        parent: ViewGroup,
-        viewType: Int
-    ): VaccineViewHolder {
-        val binding = OneRcVaccinationBinding.inflate(
-            LayoutInflater.from(parent.context),
-            parent,
-            false
-        )
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VaccineViewHolder {
+        val binding = OneRcVaccinationBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return VaccineViewHolder(binding)
     }
 

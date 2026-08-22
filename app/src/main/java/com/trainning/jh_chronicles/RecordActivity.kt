@@ -73,18 +73,39 @@ class RecordActivity : AppCompatActivity() {
         ActivityResultContracts.StartActivityForResult() // 컨트렉트
     ) { activityResult -> // 콜백
 
+        val resultCodeName = when (activityResult.resultCode) {
+            RESULT_OK -> "RESULT_OK"
+            RESULT_CANCELED -> "RESULT_CANCELED"
+            else -> activityResult.resultCode.toString()
+        }
+        logLifecycle(
+            "RecordEditorActivity 결과 수신 - resultCode=$resultCodeName"
+        )
+
         // 취소 버튼이나 시스템 뒤로가기는 RESULT_OK가 아니므로 Firebase를 변경하지 않음
         if (activityResult.resultCode != RESULT_OK) {
+            logLifecycle("취소 또는 뒤로가기 결과이므로 Firebase 변경 없음")
             return@registerForActivityResult
         }
 
         // RecordEditorActivity가 결과 데이터를 넣어 돌려준 Intent를 꺼냄
-        val resultIntent = activityResult.data ?: return@registerForActivityResult
+        val resultIntent = activityResult.data
+        if (resultIntent == null) {
+            logLifecycle("RESULT_OK이지만 결과 Intent가 없어 처리 중단")
+            return@registerForActivityResult
+        }
 
         // 같은 EditorActivity가 저장과 삭제 결과를 모두 보내므로 action 값으로 사후 처리를 구분함
         when (resultIntent.getStringExtra(RecordEditorActivity.EXTRA_RESULT_ACTION)) {
-            RecordEditorActivity.RESULT_ACTION_SAVE -> saveRecordResult(resultIntent)
-            RecordEditorActivity.RESULT_ACTION_DELETE -> deleteRecordResult(resultIntent)
+            RecordEditorActivity.RESULT_ACTION_SAVE -> {
+                logLifecycle("SAVE 결과 확인 - 기록 저장 함수 호출")
+                saveRecordResult(resultIntent)
+            }
+            RecordEditorActivity.RESULT_ACTION_DELETE -> {
+                logLifecycle("DELETE 결과 확인 - 기록 삭제 함수 호출")
+                deleteRecordResult(resultIntent)
+            }
+            else -> logLifecycle("알 수 없는 결과 action이라 처리하지 않음")
         }
     }
 
@@ -349,6 +370,7 @@ class RecordActivity : AppCompatActivity() {
         }
 
         // EditorActivity의 setResult() 결과가 필요하므로 startActivity가 아닌 Launcher로 실행
+        logLifecycle("(INTENT 발신) $eventTitle 새 기록 작성 모드로 RecordEditorActivity 실행")
         recordEditorLauncher.launch(editorIntent)
     }
 
@@ -367,6 +389,7 @@ class RecordActivity : AppCompatActivity() {
         }
 
         // 수정 또는 삭제 결과를 Activity Result Callback에서 받기 위해 Launcher로 실행
+        logLifecycle("(INTENT 발신) 기존 기록 수정 모드로 RecordEditorActivity 실행")
         recordEditorLauncher.launch(editorIntent)
     }
 
@@ -396,7 +419,16 @@ class RecordActivity : AppCompatActivity() {
         )
 
         // 기존 Dialog에서 하던 것과 똑같이 선택한 Firebase 경로에 기록 저장
+        logLifecycle(
+            "(FIREBASE 요청) ActivityResult 데이터를 ${if (returnedRecordId.isBlank()) "새 기록" else "기존 기록 수정"}으로 저장"
+        )
         targetRef.setValue(returnedRecord)
+            .addOnSuccessListener {
+                logLifecycle("(FIREBASE 완료) 기록 저장 성공")
+            }
+            .addOnFailureListener {
+                logLifecycle("(FIREBASE 실패) 기록 저장 실패")
+            }
     }
 
     // RecordEditorActivity가 돌려준 삭제 결과에서 id를 꺼내 Firebase의 해당 기록만 삭제
@@ -405,7 +437,16 @@ class RecordActivity : AppCompatActivity() {
             resultIntent.getStringExtra(RecordEditorActivity.EXTRA_RECORD_ID).orEmpty()
 
         if (recordId.isNotBlank()) {
+            logLifecycle("(FIREBASE 요청) ActivityResult가 지정한 기존 기록 삭제")
             myRef.child(recordId).removeValue()
+                .addOnSuccessListener {
+                    logLifecycle("(FIREBASE 완료) 기록 삭제 성공")
+                }
+                .addOnFailureListener {
+                    logLifecycle("(FIREBASE 실패) 기록 삭제 실패")
+                }
+        } else {
+            logLifecycle("(FIREBASE 생략) 삭제할 기록 id가 없어 요청하지 않음")
         }
     }
 
@@ -702,7 +743,7 @@ class RecordActivity : AppCompatActivity() {
         // 마지막 통계 기준 날짜를 저장하여 onResume에서 날짜 변경 여부를 다시 비교할 수 있게 함
         outState.putString(STATE_SELECTED_STATISTICS_DATE, selectedStatisticsDate)
 
-        logLifecycle("onSaveInstanceState - 통계 영역 상태와 통계 기준 날짜 저장")
+        logLifecycle("onSaveInstanceState - 통계 기준 날짜 저장")
         super.onSaveInstanceState(outState)
     }
 
@@ -719,7 +760,7 @@ class RecordActivity : AppCompatActivity() {
             mainHandler.removeCallbacksAndMessages(null)
         }
 
-        logLifecycle("onDestroy - Handler 메시지와 콜백 제거")
+        logLifecycle("onDestroy - Firebase 리스너와 Handler 대기 작업 정리")
         super.onDestroy()
     }
 }

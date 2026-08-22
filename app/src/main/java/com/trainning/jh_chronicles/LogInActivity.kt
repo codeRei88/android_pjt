@@ -26,23 +26,9 @@ class LogInActivity : AppCompatActivity() {
         // activity_log_in.xml의 뷰를 코드에서 사용하기 위한 View Binding 객체
         val binding = ActivityLogInBinding.inflate(layoutInflater)
 
-        // 상태 표시줄과 내비게이션 바 영역까지 화면을 확장
-        enableEdgeToEdge()
-
         // View Binding으로 만든 레이아웃을 액티비티 화면으로 설정
         setContentView(binding.root)
 
-        // 화면 내용이 상태 표시줄과 내비게이션 바에 가리지 않도록 시스템 바 여백 적용
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            // 시스템 바가 차지하는 상하좌우 크기를 가져옴
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-
-            // 시스템 바 크기만큼 루트 뷰에 패딩 설정
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-
-            // 처리한 WindowInsets 반환
-            insets
-        }
 
         // 회원가입 모드에서만 사용할 시스템 뒤로가기 콜백
         // 처음에는 로그인 모드이므로 false를 전달하여 비활성화 상태로 생성
@@ -78,7 +64,7 @@ class LogInActivity : AppCompatActivity() {
             registerBackCallback.isEnabled = true
         }
 
-        // 회원가입 모드의 '가입' 버튼을 눌렀을 때 실행
+        // 회원가입 모드의 가입 버튼을 눌렀을 때 실행
         binding.registerBtn.setOnClickListener {
             // 입력한 이메일과 비밀번호의 앞뒤 공백을 제거하여 저장
             val userEmail = binding.emailArea.text.toString().trim()

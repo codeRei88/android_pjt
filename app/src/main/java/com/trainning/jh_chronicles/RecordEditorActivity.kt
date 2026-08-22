@@ -50,6 +50,11 @@ class RecordEditorActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         logLifecycle("onCreate - Intent Extra를 읽어 기록 입력 화면 생성")
+        logLifecycle(
+            "(INTENT 수신) RecordActivity가 보낸 편집 모드=$editorMode, " +
+                "기록 종류=${intent.getStringExtra(EXTRA_EVENT_TYPE).orEmpty()}, " +
+                "화면 재생성=${savedInstanceState != null}"
+        )
 
         binding = ActivityRecordEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -69,7 +74,9 @@ class RecordEditorActivity : AppCompatActivity() {
 
         // 취소 시 RESULT_CANCELED를 반환하므로 RecordActivity Callback은 Firebase를 변경하지 않음
         binding.cancelBtn.setOnClickListener {
+            logLifecycle("(RESULT 등록) RESULT_CANCELED - 저장·삭제 데이터 없음")
             setResult(RESULT_CANCELED)
+            logLifecycle("(FINISH 요청) 취소 버튼으로 RecordEditorActivity 종료 요청")
             finish()
         }
     }
@@ -79,7 +86,7 @@ class RecordEditorActivity : AppCompatActivity() {
      * 우선순위는 화면 회전 Bundle -> 수정 Intent Extra -> 새 작성 Intent Extra 순서
      */
     private fun restoreEditorContent(savedInstanceState: Bundle?) {
-        // 작성 버튼에서 보낸 우유·맘마·수면·배변 또는 수정할 기존 제목을 화면 제목으로 표시
+        // 작성 버튼에서 보낸 우유,맘마,수면,배변 또는 수정할 기존 제목을 화면 제목으로 표시
         val eventTitle = intent.getStringExtra(EXTRA_EVENT_TYPE).orEmpty()
         binding.title.text = eventTitle
 
@@ -183,7 +190,9 @@ class RecordEditorActivity : AppCompatActivity() {
         }
 
         // 반환할 성공 결과를 먼저 등록하고 현재 EditorActivity를 종료해야 Callback으로 전달됨
+        logLifecycle("(RESULT 등록) RESULT_OK + SAVE 결과 Intent를 시스템에 등록")
         setResult(RESULT_OK, resultIntent)
+        logLifecycle("(FINISH 요청) 저장 버튼으로 RecordEditorActivity 종료 요청")
         finish()
     }
 
@@ -199,7 +208,9 @@ class RecordEditorActivity : AppCompatActivity() {
             putExtra(EXTRA_RECORD_ID, recordId)
         }
 
+        logLifecycle("(RESULT 등록) RESULT_OK + DELETE 결과 Intent를 시스템에 등록")
         setResult(RESULT_OK, resultIntent)
+        logLifecycle("(FINISH 요청) 삭제 버튼으로 RecordEditorActivity 종료 요청")
         finish()
     }
 
@@ -234,7 +245,7 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        logLifecycle("onDestroy - RecordEditorActivity 제거")
+        logLifecycle("onDestroy - RecordEditorActivity 인스턴스 종료")
         super.onDestroy()
     }
 }

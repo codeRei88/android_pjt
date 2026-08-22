@@ -6,11 +6,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.trainning.jh_chronicles.databinding.OneRcHospitalBinding
-class AdapterHospital(
-    private val hospitalList: MutableList<Place>,
-    private val onDialClick: (Place) -> Unit,
-    private val onMapClick: (Place) -> Unit
-) :
+class AdapterHospital(private val hospitalList: MutableList<Place>, private val onDialClick: (Place) -> Unit, private val onMapClick: (Place) -> Unit) :
     RecyclerView.Adapter<AdapterHospital.HospitalViewHolder>() {
 
     inner class HospitalViewHolder(val binding: OneRcHospitalBinding) : RecyclerView.ViewHolder(binding.root)
@@ -24,14 +20,14 @@ class AdapterHospital(
         val hospital = hospitalList[position]
         holder.binding.hospitalName.text = hospital.place_name
 
-        // 도로명 주소가 비어 있으면 지번 주소를 대신 보여줍니다.
+        // 도로명 주소가 비어 있으면 지번 주소를 대신 보여줌
         holder.binding.hospitalAddress.text =
             hospital.road_address_name.ifBlank { hospital.address_name }
 
-        // 1km 미만은 m, 1km 이상은 km로 바꿔 읽기 쉽게 보여줍니다.
+        // 1km 미만은 m, 1km 이상은 km로 바꿔 읽기 쉽게 보여줌
         holder.binding.hospitalDistance.text = formatDistance(hospital.distance)
 
-        // 카카오에 전화번호가 등록되지 않은 병원도 있으므로 빈칸 대신 안내 문구를 보여줍니다.
+        // 카카오에 전화번호가 등록되지 않은 병원도 있으므로 빈칸 대신 안내 문구를 보여줌
         holder.binding.hospitalPhone.text =
             hospital.phone.ifBlank { "전화번호 정보 없음" }
 

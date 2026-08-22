@@ -15,18 +15,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         logLifecycle("onCreate - 대시보드 UI를 최초 생성")
-        enableEdgeToEdge()
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
-        }
-
-        // 각 버튼은 대상 클래스가 분명한 '명시적 Intent'로 기능 Activity를 실행합니다.
+        // 각 버튼은 대상 클래스가 분명한 '명시적 Intent'로 기능 Activity를 실행
         binding.diaryMenuBtn.setOnClickListener {
             startActivity(Intent(this, DiaryActivity::class.java))
         }

@@ -63,7 +63,11 @@ class DiaryEditorActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        logLifecycle("onCreate - Intent Extra를 읽어 일기 편집 화면 생성")
+        logLifecycle("onCreate - DiaryActivity에서 온 Intent Extra를 읽어 일기 편집 화면 생성")
+        logLifecycle(
+            "(INTENT 수신) DiaryActivity가 보낸 편집 모드=$editorMode, " +
+                "화면 재생성=${savedInstanceState != null}"
+        )
 
         binding = ActivityDiaryEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -97,7 +101,9 @@ class DiaryEditorActivity : AppCompatActivity() {
 
         // 취소 시 RESULT_CANCELED를 반환하므로 DiaryActivity는 저장이나 삭제를 실행하지 않음
         binding.cancelBtn.setOnClickListener {
+            logLifecycle("(RESULT 등록) RESULT_CANCELED - 저장·삭제 데이터 없음")
             setResult(RESULT_CANCELED)
+            logLifecycle("(FINISH 요청) 취소 버튼으로 DiaryEditorActivity 종료 요청")
             finish()
         }
 
@@ -220,13 +226,15 @@ class DiaryEditorActivity : AppCompatActivity() {
             putExtra(EXTRA_DIARY_CONTENT, content)
         }
 
-        // 이제 onPause가 호출되어도 저장 완료 내용을 다시 초안으로 쓰지 않도록 표시
+        // onPause가 호출되어도 저장 완료 내용을 다시 초안으로 쓰지 않도록 표시
         isResultSent = true
 
         // RESULT_OK와 결과 Intent를 등록하면 DiaryActivity의 Activity Result 콜백으로 전달됨
+        logLifecycle("(RESULT 등록) RESULT_OK + SAVE 결과 Intent를 시스템에 등록")
         setResult(RESULT_OK, resultIntent)
 
         // 결과를 등록한 뒤 현재 편집 Activity를 닫아 DiaryActivity로 돌아감
+        logLifecycle("(FINISH 요청) 저장 버튼으로 DiaryEditorActivity 종료 요청")
         finish()
     }
 
@@ -247,7 +255,9 @@ class DiaryEditorActivity : AppCompatActivity() {
 
         // 삭제 결과를 보낸 뒤 onPause에서 초안 저장 코드가 실행되지 않도록 표시
         isResultSent = true
+        logLifecycle("(RESULT 등록) RESULT_OK + DELETE 결과 Intent를 시스템에 등록")
         setResult(RESULT_OK, resultIntent)
+        logLifecycle("(FINISH 요청) 삭제 버튼으로 DiaryEditorActivity 종료 요청")
         finish()
     }
 
@@ -355,8 +365,13 @@ class DiaryEditorActivity : AppCompatActivity() {
          * 기존의 입력할 때마다 저장하는 기능에 더해 마지막 상태를 한 번 더 SharedPreferences에 저장
          */
         saveDraftToSharedPreferences()
-        logLifecycle("onPause - 작성 중인 새 일기 초안을 SharedPreferences에 저장")
+        logLifecycle("onPause - 작성 중인 글이 새 일기라면 초안을 SharedPreferences에 저장")
         super.onPause()
+    }
+
+    override fun onStop() {
+        logLifecycle("onStop - 일기 편집 화면이 완전히 가려짐")
+        super.onStop()
     }
 
     /*
@@ -372,7 +387,7 @@ class DiaryEditorActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        logLifecycle("onDestroy - DiaryEditorActivity 제거")
+        logLifecycle("onDestroy - DiaryEditorActivity 인스턴 종료")
         super.onDestroy()
     }
 }

@@ -21,28 +21,40 @@ import java.util.Calendar
 
 class VaccinationActivity : AppCompatActivity() {
 
+    private companion object {
+        // 접종 화면에서 사용할 SharedPreferences 파일 이름과 완료 항목 숨김 key
+        const val VACCINE_PREFERENCES_NAME = "vaccine_preferences"
+        const val HIDE_COMPLETED_VACCINES_KEY = "hide_completed_vaccines"
+    }
+
     private lateinit var binding: ActivityVaccinationBinding
 
     private lateinit var vaccineAdapter: AdapterVaccine
     private val vaccineList = mutableListOf<VaccineData>() // 앱내 저장된 백신데이터
 
-    // 현재 로그인 사용자의 예방접종 저장 경로입니다.
+    // 현재 로그인 사용자의 예방접종 저장 경로
     private lateinit var userVaccineRef: DatabaseReference
 
-    // 화면이 사라질 때 Firebase 리스너를 제거하기 위해 보관합니다.
+    // 화면이 사라질 때 Firebase 리스너를 제거하기 위해 보관
     private var vaccineValueListener: ValueEventListener? = null
 
-    // 사용자가 입력한 아기 생년월일입니다.
+    // 사용자가 입력한 아기 생년월일
     private var birthDate: LocalDate? = null
 
+    // Firebase의 최초 접종 데이터 수신이 끝났는지 구분
+    // false일 때 birthDate가 null인 것은 "저장된 생일 없음"이 아니라 "아직 읽는 중"일 수 있음
+    private var hasLoadedVaccineData = false
+
+    // SharedPreferences에서 불러온 완료 접종 숨김 여부를 목록 필터에 전달
+    private var hideCompletedVaccines = false
+
     /*
-     * 사용자가 요청한 핵심 변수입니다.
-     * 오늘까지 아기가 태어난 지 며칠인지 저장합니다.
-     * 생년월일을 아직 입력하지 않았다면 null입니다.
+     * 사용자가 요청한 핵심 변수
+     * 오늘까지 아기가 태어난 지 며칠인지 저장
+     * 생년월일을 아직 입력하지 않았다면 null
      */
     private var daysSinceBirth: Int? = null
 
-    // Fragment의 onCreateView 대신 Activity는 onCreate에서 화면을 생성한다.
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         logLifecycle("onCreate - RecyclerView, 생년월일 버튼과 Firebase 경로 초기화")
@@ -52,6 +64,7 @@ class VaccinationActivity : AppCompatActivity() {
 
         setupNavigationButtons() //각 액티비티 이동 지정 메서드
         setupRecyclerView() //리사이클러뷰, 레이아웃메니저 연결, 앱내 저장된 백신데이터 화면에 표시
+        setupHideCompletedSwitch() //저장된 완료 접종 숨김 설정을 불러오고 스위치와 목록에 적용
         setupBirthDateButton() //생년월일 입력버튼을 눌렀을때 생일을 파이어베이스에 저장 및 백신데이터 저장
         // Firebase 데이터가 도착하기 전 기본 접종 일정의 D-Day계산 아이 생후 일수를 기준으로
         recalculateDays()
@@ -61,6 +74,7 @@ class VaccinationActivity : AppCompatActivity() {
         //파이어베이스 설정
         val currentUser = Firebase.auth.currentUser
         if (currentUser == null) {
+            logLifecycle("로그인 사용자가 없어 접종 데이터 경로 생성 중단")
             binding.babyAgeText.text =
                 "로그인 정보를 찾지 못해 접종 기록을 불러올 수 없습니다."
             binding.babyBirthDay.isEnabled = false
@@ -69,6 +83,7 @@ class VaccinationActivity : AppCompatActivity() {
         userVaccineRef = Firebase.database
             .getReference("vaccine_entries")
             .child(currentUser.uid)
+        logLifecycle("로그인 사용자의 접종 데이터 경로 생성 완료")
     }
 
     /*
@@ -76,6 +91,7 @@ class VaccinationActivity : AppCompatActivity() {
      */
     private fun setupRecyclerView() {
         vaccineAdapter = AdapterVaccine { vaccine, isChecked ->
+            logLifecycle("접종 체크 상태 변경 - Firebase 저장 함수 호출")
             saveCompletion(vaccine, isChecked)
         }
 
@@ -87,6 +103,34 @@ class VaccinationActivity : AppCompatActivity() {
         vaccineList.clear()
         vaccineList.addAll(VaccineData.standardSchedule())
         refreshVaccineList()
+    }
+
+    /*
+     * SharedPreferences에서 마지막 완료 접종 숨김 여부를 불러와 Switch에 표시하고
+     * 사용자가 Switch를 변경하면 Boolean value를 저장한 뒤 접종 목록을 바로 다시 그림
+     */
+    private fun setupHideCompletedSwitch() {
+        val vaccinePreferences =
+            getSharedPreferences(VACCINE_PREFERENCES_NAME, MODE_PRIVATE) //접종화면 설정 key, value를 담아둘 저장소
+
+        hideCompletedVaccines = vaccinePreferences.getBoolean(
+            HIDE_COMPLETED_VACCINES_KEY,
+            false
+        ) //저장된 Boolean value가 없다면 완료 접종도 보여주는 false를 기본값으로 사용
+
+        // 저장값을 먼저 Switch에 표시한 후 리스너를 달아 화면 생성 중 불필요한 저장을 막음
+        binding.hideCompletedSwitch.isChecked = hideCompletedVaccines
+        binding.hideCompletedSwitch.setOnCheckedChangeListener { _, isChecked ->
+            hideCompletedVaccines = isChecked
+            vaccinePreferences.edit()
+                .putBoolean(HIDE_COMPLETED_VACCINES_KEY, isChecked) //Switch 상태를 key, value 형태로 저장
+                .apply() //메인 화면을 막지 않고 비동기로 SharedPreferences에 반영
+            logLifecycle("SharedPreferences에 완료 접종 숨김 여부 $isChecked 저장")
+
+            refreshVaccineList() //새 Boolean 설정에 맞게 완료 접종을 숨기거나 다시 표시
+        }
+
+        refreshVaccineList() //앱을 다시 실행했을 때 불러온 마지막 설정을 최초 목록에도 적용
     }
 
     /*
@@ -108,12 +152,21 @@ class VaccinationActivity : AppCompatActivity() {
     // 단 파이어베이스 데이터를 가저올때 기존 앱내 백신데이터와 비교를 해서 기존 앱에 추가된 백신이 있다면 그것도 가져옴
     private fun observeVaccineData() {
         // onStart가 다시 호출돼도 같은 Firebase 리스너가 중복 등록되지 않도록 확인
-        if (vaccineValueListener != null || !::userVaccineRef.isInitialized) return
+        if (vaccineValueListener != null) {
+            logLifecycle("접종 리스너가 이미 연결되어 중복 등록하지 않음")
+            return
+        }
+        if (!::userVaccineRef.isInitialized) {
+            logLifecycle("사용자 경로가 없어 접종 리스너를 연결하지 않음")
+            return
+        }
 
         //파이어베이스 백신저장소에 파견할 리스너 생성
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                loadBirthDate(snapshot)
+                logLifecycle("접종 데이터 onDataChange 호출")
+                loadBirthDate(snapshot) //파이어베이스에 저장된 생년월일을 가저옴
+                hasLoadedVaccineData = true
                 // 파이어베이스에서 가져온 백신 데이터
                 val savedById = snapshot
                     .child("vaccines")
@@ -125,7 +178,7 @@ class VaccinationActivity : AppCompatActivity() {
 
                 // VaccineData.standardSchedule() 함수에 있는 모든 접종데이터카드들을 map이라는 변환 터널에 넣겠다 그 한장의 데이터카드이름이 standard
                 // mergedList는 앱내 새로 추가된 백신일정표를 가져온 그릇
-                // 앱내 백신일정표와 파이어베이스에서 가져온 기록을 비교하여 최신 상태로 합칩니다.
+                // 앱내 백신일정표와 파이어베이스에서 가져온 기록을 비교하여 최신 상태로 합침
                 // 기존 일정표에 새로운 접종이 추가될경우 그 접종값을 포함시켜 어뎁터에 알려주기 위함
                 val mergedList = VaccineData.standardSchedule().map { standard ->
                     val saved = savedById[standard.id] // Firebase에 저장된 데이터 중 standard.id와 같은 백신을 찾는다. 저장된 항목이 없으면 saved는 null이다.
@@ -138,11 +191,13 @@ class VaccinationActivity : AppCompatActivity() {
                 vaccineList.addAll(mergedList) // 합쳐진 최신 리스트를 추가합니다.
 
                 recalculateDays() // 생후 일수에 따른 D-Day 재계산
-                refreshVaccineList() // 앱내 백신데이터를 재정렬
+                refreshVaccineList() // 앱내 백신데이터를 재정렬 후 화면 표시
+                logLifecycle("Firebase 데이터 병합 후 접종 목록과 D-Day 갱신")
                 saveMissingScheduleItems(snapshot) // 앱내 백신데이터에는 있는데 파이어베이스에 없는 데이터를 파이어베이스에 추가
             }
 
             override fun onCancelled(error: DatabaseError) {
+                logLifecycle("접종 데이터 onCancelled 호출")
                 if (isFinishing || isDestroyed) return
 
                 binding.babyAgeText.text =
@@ -157,6 +212,7 @@ class VaccinationActivity : AppCompatActivity() {
         }
 
         vaccineValueListener = listener
+        logLifecycle("리스너를 접종데이터 저장경로에 연결")
         userVaccineRef.addValueEventListener(listener)
     }
 
@@ -164,6 +220,7 @@ class VaccinationActivity : AppCompatActivity() {
     private fun stopObservingVaccineData() {
         vaccineValueListener?.let { listener ->
             if (::userVaccineRef.isInitialized) { //파이어베이스 경로가 초기화된적이 있다면
+                logLifecycle("접종 데이터 ValueEventListener 제거")
                 userVaccineRef.removeEventListener(listener) // 그경로에 붙어있는 리스너를 해제해라
             }
         }
@@ -187,7 +244,7 @@ class VaccinationActivity : AppCompatActivity() {
     }
 
     /*
-     * 기존 사용자의 Firebase에 없는 새 접종 항목만 추가합니다.
+     * 기존 사용자의 Firebase에 없는 새 접종 항목만 추가
      * 이미 저장된 체크 상태는 덮어쓰지 않음
      */
     private fun saveMissingScheduleItems(snapshot: DataSnapshot) {
@@ -195,7 +252,7 @@ class VaccinationActivity : AppCompatActivity() {
         val savedVaccines = snapshot.child("vaccines") //현재 저장된 파이어베이스 데이터를 담아두는 그릇
 
         vaccineList.forEach { vaccine -> // 앱에 저장된 백신데이터를 하나씩 가지고 옴
-            // Firebase에 아직 없는 접종 항목만 새로 저장합니다.
+            // Firebase에 아직 없는 접종 항목만 새로 저장
             if (!savedVaccines.child(vaccine.id).exists()) { // 파이어베이스에 해당 백신 ID가 없으면
                 updates["vaccines/${vaccine.id}"] = vaccine //updates그릇에 key/value형태로 저장
             }
@@ -210,7 +267,16 @@ class VaccinationActivity : AppCompatActivity() {
         }
 
         if (updates.isNotEmpty()) {
-            userVaccineRef.updateChildren(updates)
+            logLifecycle("누락 일정 또는 변경된 생후 일수 보완 저장")
+            userVaccineRef.updateChildren(updates) //업데이트된 부분만 파이어베이스에 저장
+                .addOnSuccessListener {
+                    logLifecycle("누락 접종 일정 보완 성공")
+                }
+                .addOnFailureListener {
+                    logLifecycle("누락 접종 일정 보완 실패")
+                }
+        } else {
+            logLifecycle("화면표시완료, 업데이트할 접종은 없음")
         }
     }
 
@@ -219,6 +285,7 @@ class VaccinationActivity : AppCompatActivity() {
      */
     private fun setupBirthDateButton() {
         binding.babyBirthDay.setOnClickListener {
+            logLifecycle("생년월일 DatePickerDialog 실행")
             showBirthDatePicker()
         }
     }
@@ -230,10 +297,12 @@ class VaccinationActivity : AppCompatActivity() {
         val dialog = DatePickerDialog(
             this,
             { _, year, month, dayOfMonth ->
+                logLifecycle("사용자가 생년월일 선택 완료")
                 val selectedDate =
                     LocalDate.of(year, month + 1, dayOfMonth)
 
                 if (selectedDate.isAfter(LocalDate.now())) { //오늘 날짜보다 미래날짜 선택했을시 예외처리
+                    logLifecycle("미래 날짜라 저장하지 않음")
                     Toast.makeText(
                         this,
                         "태어난 날짜는 오늘보다 미래일 수 없습니다.",
@@ -245,6 +314,7 @@ class VaccinationActivity : AppCompatActivity() {
                 birthDate = selectedDate
                 recalculateDays() //생일을 알았으니 생후 일수와 백신 디데이를 계산하여 업데이트
                 refreshVaccineList() // 디데이계산이 됐으니 리사이클러뷰 재 정렬
+                logLifecycle("선택한 생년월일 기준 생후 일수와 D-Day 갱신")
                 saveBirthDateAndSchedule() // 생일과 생후날짜, 백신데이터를 파이어베이스에 저장
             },
             initialDate.year,
@@ -263,6 +333,11 @@ class VaccinationActivity : AppCompatActivity() {
         if (currentBirthDate == null) {
             daysSinceBirth = null //생일입력이 되지않았으면 총생후일수도 없으므로 null
             updateBabyAgeText()
+            if (hasLoadedVaccineData) {
+                logLifecycle("Firebase에 저장된 생년월일이 없어 기본 접종 일정 사용")
+            } else {
+                logLifecycle("Firebase 생년월일 로딩 전 - 기본 접종 일정 표시")
+            }
             return
         }
         // 아기 생일과 현재 달력날짜 사이의 gap을 day단위 int로 반환해서 저장
@@ -279,6 +354,7 @@ class VaccinationActivity : AppCompatActivity() {
         }
 
         updateBabyAgeText()
+        logLifecycle("현재 날짜 기준 생후 일수와 전체 접종 D-Day 계산 완료")
     }
 
     /*
@@ -288,17 +364,25 @@ class VaccinationActivity : AppCompatActivity() {
      */
     private fun refreshVaccineList() {
         val currentDaysSinceBirth = daysSinceBirth // 생후 며칠됐는지 값
+
+        // 숨기기 설정이 true면 Firebase 데이터는 지우지 않고 화면에 전달할 목록에서 완료 항목만 제외
+        val displayVaccineList = if (hideCompletedVaccines) {
+            vaccineList.filter { vaccine -> !vaccine.complete }
+        } else {
+            vaccineList
+        }
+
         // 생일 입력 전에는 맞아야할 날짜가 빠른순으로 정렬
         val sortedList = if (currentDaysSinceBirth == null) {
-            vaccineList.sortedWith(
-                compareBy<VaccineData> { it.complete }
-                    .thenBy { it.targetMonths }
-                    .thenBy { it.extraDays }
-                    .thenBy { it.name }
+            displayVaccineList.sortedWith(
+                compareBy<VaccineData> { it.complete } // 완료 체크가 안된것부터 위로 올라오게 정렬
+                    .thenBy { it.targetMonths } // 접종 시작 개월수가 빠른순
+                    .thenBy { it.extraDays } // 접종 시작 일수가 빠른순
+                    .thenBy { it.name } // 이름순
             )
         } else {
             // 생후 날짜를 기준으로 접종 시작일이 가까운 순서대로 정렬
-            vaccineList.sortedWith(
+            displayVaccineList.sortedWith(
                 compareBy<VaccineData> { it.complete }
                     .thenBy { it.startDay - currentDaysSinceBirth }
                     .thenBy { it.name }
@@ -325,8 +409,10 @@ class VaccinationActivity : AppCompatActivity() {
             updates["vaccines/${vaccine.id}"] = vaccine
         }
 
+        logLifecycle("생년월일·생후 일수·전체 접종 일정 저장")
         userVaccineRef.updateChildren(updates) //파이어베이스저장소에 가서 updates상자안의 내용만 추가시켜라
             .addOnSuccessListener {
+                logLifecycle("생년월일과 접종 일정 저장 성공 콜백 호출")
                 if (isFinishing || isDestroyed) return@addOnSuccessListener
 
                 Toast.makeText(
@@ -336,6 +422,7 @@ class VaccinationActivity : AppCompatActivity() {
                 ).show()
             }
             .addOnFailureListener { error ->
+                logLifecycle("생년월일과 접종 일정 저장 실패")
                 if (isFinishing || isDestroyed) return@addOnFailureListener
 
                 Toast.makeText(
@@ -353,11 +440,16 @@ class VaccinationActivity : AppCompatActivity() {
         vaccine.complete = isChecked
         refreshVaccineList() // 체크박스에 체크를 하는순간 바로 체크한항목을 밑으로 재정렬
 
+        logLifecycle("체크박스 변경된 항목 저장")
         userVaccineRef
             .child("vaccines")
             .child(vaccine.id)
             .setValue(vaccine)
+            .addOnSuccessListener {
+                logLifecycle("접종 완료 상태 저장 성공")
+            }
             .addOnFailureListener { error ->
+                logLifecycle("접종 완료 상태 저장 실패")
                 if (isFinishing || isDestroyed) return@addOnFailureListener
 
                 Toast.makeText(
@@ -391,40 +483,48 @@ class VaccinationActivity : AppCompatActivity() {
 
     private fun setupNavigationButtons() {
         binding.recordBtn.setOnClickListener {
+            logLifecycle("[INTENT 발신] RecordActivity 실행")
             startActivity(Intent(this, RecordActivity::class.java))
         }
 
         binding.weatherBtn.setOnClickListener {
+            logLifecycle("[INTENT 발신] WeatherActivity 실행")
             startActivity(Intent(this, WeatherActivity::class.java))
         }
 
         binding.mapBtn.setOnClickListener {
+            logLifecycle("[INTENT 발신] HospitalActivity 실행")
             startActivity(Intent(this, HospitalActivity::class.java))
         }
 
         binding.diaryBtn.setOnClickListener {
+            logLifecycle("[INTENT 발신] DiaryActivity 실행")
             startActivity(Intent(this, DiaryActivity::class.java))
         }
     }
 
     override fun onStart() {
         super.onStart()
-        logLifecycle("onStart - Firebase 접종 리스너 연결")
-
+        logLifecycle("onStart - 화면 보이기 시작")
         // Activity가 사용자에게 보이는 동안에만 Firebase 접종 변경사항을 관찰
         observeVaccineData()
     }
 
     override fun onResume() {
         super.onResume()
-        logLifecycle("onResume - LocalDate.now() 기준 D-Day 재계산")
+        logLifecycle("onResume - 접종 화면과 상호작용 가능")
 
         /*
          * 다른 Activity나 캘린더 앱에 머무는 동안 날짜가 바뀔 수 있으므로
          * 화면이 다시 전면에 나타날 때 현재 날짜 기준 생후 일수와 모든 D-Day를 다시 계산
          */
-        recalculateDays()
-        refreshVaccineList()
+        if (hasLoadedVaccineData) {
+            logLifecycle("저장된 생년월일 기준 LocalDate.now() D-Day 재계산")
+            recalculateDays()
+            refreshVaccineList()
+        } else {
+            logLifecycle("Firebase 생년월일 데이터 수신 대기")
+        }
     }
 
     override fun onPause() {
@@ -448,8 +548,7 @@ class VaccinationActivity : AppCompatActivity() {
     override fun onDestroy() {
         // 종료에도 리스너가 남지 않도록 한 번 더 정리
         stopObservingVaccineData()
-        binding.vaccineRc.adapter = null
-        logLifecycle("onDestroy - Firebase 리스너와 RecyclerView 참조 정리")
+        logLifecycle("onDestroy - 리스너 정리 및 VaccinationActivity 인스턴스 종료")
         super.onDestroy()
     }
 }

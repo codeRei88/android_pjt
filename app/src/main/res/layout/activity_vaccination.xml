@@ -44,6 +44,17 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/babyBirthDay" />
 
+    <!-- 체크하면 Firebase의 완료 기록은 유지하면서 화면에서는 완료한 접종만 숨김 -->
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/hideCompletedSwitch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="완료한 접종 숨기기"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/babyAgeText" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/vaccineRc"
         android:layout_width="0dp"
@@ -57,7 +68,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/babyAgeText"
+        app:layout_constraintTop_toBottomOf="@+id/hideCompletedSwitch"
         app:layout_constraintVertical_bias="1.0"
         tools:listitem="@layout/one_rc_vaccination" />
 

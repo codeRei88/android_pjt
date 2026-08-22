@@ -18,6 +18,37 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- 사용자가 카카오 병원 검색 반경을 1km, 3km, 5km 중에서 고르는 버튼 묶음 -->
+    <RadioGroup
+        android:id="@+id/searchRadiusGroup"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textView">
+
+        <RadioButton
+            android:id="@+id/radius1kmBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1km" />
+
+        <RadioButton
+            android:id="@+id/radius3kmBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="3km" />
+
+        <RadioButton
+            android:id="@+id/radius5kmBtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="5km" />
+
+    </RadioGroup>
+
     <TextView
         android:id="@+id/statusText"
         android:layout_width="wrap_content"
@@ -27,7 +58,7 @@
         android:textSize="16sp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/textView" />
+        app:layout_constraintTop_toBottomOf="@id/searchRadiusGroup" />
 
     <ProgressBar
         android:id="@+id/progressBar"
